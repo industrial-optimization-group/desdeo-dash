@@ -113,8 +113,8 @@ class Plotter:
             subplot_titles=titles,
         )
 
-        fig["layout"]["width"] = cols * 400
-        fig["layout"]["height"] = rows * 400
+        fig["layout"]["width"] = cols * 225
+        fig["layout"]["height"] = rows * 225
         fig["layout"]["autosize"] = True
         polars = ["polar"] + [
             "polar{}".format(i + 1) for i in range(1, len(zs))
@@ -183,7 +183,7 @@ class Plotter:
                         fillcolor="green",
                         fill="none",
                         showlegend=False,
-                        hovertext=previous_original,
+                        hovertext=previous_original[0],
                         hoverinfo="name+theta+text",
                         line={"dash": "dot", "color": "green"},
                     ),
@@ -277,7 +277,8 @@ class Plotter:
 
     def make_table(
         self,
-        zs: np.ndarray,
+        zs: Optional[np.ndarray] = None,
+        xs: Optional[np.ndarray] = None,
         names: Optional[List[str]] = None,
         labels: Optional[List[str]] = None,
         row_name: Optional[List[str]] = None,
@@ -290,10 +291,15 @@ class Plotter:
             names (List[str], optional): List of the objective_names
 
         """
-        if zs.ndim == 1:
+        if zs is not None and zs.ndim == 1:
             zs = zs.reshape(1, -1)
-        zs_original = self.scaler.inverse_transform(zs)
-        zs_original = np.where(self.is_max, -zs_original, zs_original)
+
+        if zs is not None:
+            zs_original = self.scaler.inverse_transform(zs)
+            zs_original = np.where(self.is_max, -zs_original, zs_original)
+
+        elif zs is None and xs is not None:
+            zs_original = xs
 
         if names is None:
             names = [
