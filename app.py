@@ -11,10 +11,21 @@ from sklearn.preprocessing import MinMaxScaler
 from desdeov2.problem.Problem import ScalarDataProblem
 from desdeov2.methods.Nautilus import ENautilus
 
+# notes: thousands separator, lot size 48th and safety stock 49th, value paths are nice, max text with arrow, days on hand, 254/inventory turnover (days on hand)
 
-xs = np.genfromtxt("./data/decision_result.csv", delimiter=",")
-fs = np.genfromtxt("./data/objective_result.csv", delimiter=",")
-objective_names = ["obj{}".format(i + 1) for i in range(fs.shape[1])]
+# xs = np.genfromtxt("./data/decision_result.csv", delimiter=",")
+# fs = np.genfromtxt("./data/objective_result.csv", delimiter=",")
+data = np.genfromtxt("./data/first_data.csv", delimiter=",")
+xs = data[:, :50]
+fs = data[:, 50:]
+# objective_names = ["obj{}".format(i + 1) for i in range(fs.shape[1])]
+objective_names = [
+    "Purchasing and ordering cost",
+    "Holding cost",
+    "Cycle service level",
+    "Probability of product availability",
+    "Inventory turnoever",
+]
 variable_names = ["x{}".format(i + 1) for i in range(xs.shape[1])]
 is_max = [False, False, True, True, True]
 fs = np.where(is_max, -fs, fs)
@@ -130,19 +141,17 @@ app.layout = html.Div(
                     [
                         html.H5("Tabled candidate objective values"),
                         dash_table.DataTable(
-                            id="table",
-                            columns=columns,
-                            data=data,
+                            id="table", columns=columns, data=data
                         ),
                     ],
-                    className="six columns",
+                    className="row",
                 ),
                 html.Div(
                     [
                         html.H5("Tabled candidate best reachable values"),
                         dash_table.DataTable(id="table-best"),
                     ],
-                    className="six columns",
+                    className="row",
                 ),
             ],
             className="row",
