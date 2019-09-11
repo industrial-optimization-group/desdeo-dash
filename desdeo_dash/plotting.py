@@ -97,7 +97,7 @@ class Plotter:
         names = [
             "{} ({})".format(name, val)
             for (val, name) in zip(
-                ["max" if m is True else "min" for m in self.is_max], names
+                ["⇧" if m is True else "⇩" for m in self.is_max], names
             )
         ]
 
@@ -133,9 +133,6 @@ class Plotter:
             subplot_titles=titles,
         )
 
-        # fig["layout"]["width"] = cols * 225
-        # fig["layout"]["height"] = rows * 225
-        # fig["layout"]["autosize"] = True
         polars = ["polar"] + [
             "polar{}".format(i + 1) for i in range(1, len(zs))
         ]
@@ -266,7 +263,7 @@ class Plotter:
         names = [
             "{} ({})".format(name, val)
             for (val, name) in zip(
-                ["max" if m is True else "min" for m in self.is_max], names
+                ["⇧" if m is True else "⇩" for m in self.is_max], names
             )
         ]
 
@@ -331,7 +328,7 @@ class Plotter:
         names = [
             "{} ({})".format(name, val)
             for (val, name) in zip(
-                ["max" if m is True else "min" for m in self.is_max], names
+                ["⇧" if m is True else "⇩" for m in self.is_max], names
             )
         ]
         names = row_name + names
@@ -356,7 +353,7 @@ class Plotter:
             for key in entry:
                 if key == row_name[0]:
                     continue
-                entry[key] = "{0:.2f}".format(entry[key])
+                entry[key] = "{0:,.2f}".format(entry[key])
 
         return columns, data
 
@@ -403,7 +400,7 @@ class Plotter:
         names = [
             "{} ({})".format(name, val)
             for (val, name) in zip(
-                ["max" if m is True else "min" for m in self.is_max], names
+                ["⇧" if m is True else "⇩" for m in self.is_max], names
             )
         ]
 
@@ -450,7 +447,7 @@ class Plotter:
                         name=titles[b_i] + " best",
                         legendgroup=str(b_i),
                         visible=vis,
-                        hovertemplate="%{theta}: %{meta:.2f}",
+                        hovertemplate="%{theta}: %{meta:,.2f}",
                         line={"color": next(colors_best), "dash": "dot"},
                     )
                 )
@@ -463,7 +460,7 @@ class Plotter:
                     theta=names,
                     fill="none",
                     name="Previous candidate",
-                    hovertemplate="%{theta}: %{meta:.2f}",
+                    hovertemplate="%{theta}: %{meta:,.2f}",
                     line={"color": "black", "dash": "dot"},
                 )
             )
@@ -484,7 +481,7 @@ class Plotter:
                     legendgroup=str(z_i),
                     visible=vis,
                     name=titles[z_i],
-                    hovertemplate="%{theta}: %{meta:.2f}",
+                    hovertemplate="%{theta}: %{meta:,.2f}",
                     line={"color": next(colors_candidate)},
                 )
             )
@@ -529,7 +526,7 @@ class Plotter:
         names = [
             "{} ({})".format(name, val)
             for (val, name) in zip(
-                ["max" if m is True else "min" for m in self.is_max], names
+                ["⇧" if m is True else "⇩" for m in self.is_max], names
             )
         ]
 
@@ -560,6 +557,8 @@ class Plotter:
         )
 
         if selection is not None:
+            if len(zs_original) == 1:
+                selection = 0
             fig["data"][0]["dimensions"][0]["constraintrange"] = [
                 zs_original[selection][0] - 1,
                 zs_original[selection][0] + 1,

@@ -13,12 +13,11 @@ from desdeov2.methods.Nautilus import ENautilus
 
 # notes: thousands separator, lot size 48th and safety stock 49th, value paths are nice, max text with arrow, days on hand, 254/inventory turnover (days on hand)
 
-# xs = np.genfromtxt("./data/decision_result.csv", delimiter=",")
-# fs = np.genfromtxt("./data/objective_result.csv", delimiter=",")
+
 data = np.genfromtxt("./data/first_data.csv", delimiter=",")
 xs = data[:, :50]
 fs = data[:, 50:]
-# objective_names = ["obj{}".format(i + 1) for i in range(fs.shape[1])]
+
 objective_names = [
     "Purchasing and ordering cost",
     "Holding cost",
@@ -28,12 +27,11 @@ objective_names = [
 ]
 variable_names = ["x{}".format(i + 1) for i in range(xs.shape[1])]
 is_max = [False, False, True, True, True]
-fs = np.where(is_max, -fs, fs)
 
 # scale the data
 scaler = MinMaxScaler((-1, 1))
-scaler.fit(fs)
-fs_norm = scaler.transform(fs)
+scaler.fit(np.where(is_max, -fs, fs))
+fs_norm = scaler.transform(np.where(is_max, -fs, fs))
 
 # create the problem
 problem = ScalarDataProblem(xs, fs_norm)
@@ -68,13 +66,15 @@ app.layout = html.Div(
         html.Div(
             [
                 html.H3(
-                    "E-NAUTILUS: Iterations left {}".format(enautilus.ith - 1),
+                    "E-NAUTILUS: Iterations left {}".format(enautilus.ith),
                     id="title",
                     className="row",
                 ),
                 html.H4(
-                    "Select the best candidate and iterate. "
-                    "Or just iterate if first iteration.",
+                    (
+                        "Select the best candidate and iterate. "
+                        "Or just iterate if first iteration."
+                    ),
                     className="six columns",
                 ),
                 dcc.RadioItems(
@@ -105,6 +105,7 @@ app.layout = html.Div(
                 html.Div(
                     [
                         html.H5("Spider plots"),
+                        html.P("info", id="info"),
                         dcc.Graph(
                             id="spider-plots",
                             figure=plotter.spider_plot_candidates(
@@ -120,6 +121,8 @@ app.layout = html.Div(
                         html.H5(
                             "Value paths (double click on first axis to show all paths)"
                         ),
+                        html.P("Final lot size and safety stocks will be shown "
+                               "here when solutions are reached.", id="final"),
                         dcc.Graph(
                             id="value-paths",
                             figure=plotter.value_path_plot_candidates(
@@ -166,6 +169,7 @@ app.layout = html.Div(
         Output("table-best", "style_data_conditional"),
         Output("spider-plots", "figure"),
         Output("value-paths", "figure"),
+        Output("info", "children"),
     ],
     [Input("candidate-selection", "value")],
 )
@@ -177,6 +181,10 @@ def highlight_table_row(candidate_index):
 
     if candidate_index == -1:
         raise PreventUpdate
+
+    # just one solution
+    if intermediate_points.ndim == 1:
+        candidate_index = 0
 
     style = [
         {
@@ -203,7 +211,17 @@ def highlight_table_row(candidate_index):
         zs, objective_names, selection=candidate_index
     )
 
-    return style, style, spider_plots, value_paths
+    # original scale zs
+    if zs.ndim == 1:
+        orig_zs = scaler.inverse_transform(zs.reshape(1, -1))
+    else:
+        orig_zs = scaler.inverse_transform(zs)
+    orig_zs = np.where(is_max, -orig_zs, orig_zs)
+    info = ("Inventory turnover for currently selected candidate: {:,.2f}").format(
+        254 / orig_zs[candidate_index, 4]
+    )
+
+    return style, style, spider_plots, value_paths, info
 
 
 @app.callback(
@@ -215,6 +233,7 @@ def highlight_table_row(candidate_index):
         Output("table-best", "columns"),
         Output("table-best", "data"),
         Output("candidate-selection", "value"),
+        Output("final", "children")
     ],
     [Input("iterate-button", "n_clicks")],
     [State("candidate-selection", "value")],
@@ -225,6 +244,9 @@ def update_candidates(n_clicks, candidate_index):
     global current_best_idx
     global previous_best
 
+    if enautilus.ith == 0:
+        raise PreventUpdate
+
     if n_clicks == 0:
         raise PreventUpdate
     if n_clicks == 1:
@@ -233,31 +255,45 @@ def update_candidates(n_clicks, candidate_index):
     else:
         previous_best = intermediate_points[current_best_idx]
         current_best_idx = candidate_index
-        enautilus.interact(
+        x = enautilus.interact(
             intermediate_points[current_best_idx],
             intermediate_ranges[current_best_idx],
         )
+        print(x)
         zs, best = enautilus.iterate()
 
     intermediate_points = zs
     intermediate_ranges = best
 
+    default_candidate = 0
+
     options = [
         {"label": "Candidate {}".format(ind + 1), "value": val}
         for (ind, val) in enumerate(range(len(intermediate_points)))
     ]
-    if enautilus.ith - 1 >= 1:
-        title = "E-NAUTILUS: Iterations left {}".format(enautilus.ith - 1)
-    else:
-        title = "E-NAUTILUS: Done. Select the final solution."
+    if enautilus.ith > 1:
+        title = "E-NAUTILUS: Iterations left {}".format(enautilus.ith)
+        final = ""
 
-    columns, data = plotter.make_table(zs=zs, names=objective_names)
+    elif enautilus.ith == 1:
+        title = "Select the final solution."
+        final = ""
+    else:
+        title = "Done. Final solution displayed"
+        final = "Lot size: {:,.2f} Safety stock: {:,.2f}".format(x[0][48], x[0][49])
+        default_candidate = current_best_idx
+        intermediate_points = zs[current_best_idx]
+        intermediate_ranges = best[current_best_idx]
+        previous_best = None
+        options = []
+
+    columns, data = plotter.make_table(zs=intermediate_points, names=objective_names)
 
     columns_best, data_best = plotter.make_table(
-        zs=best, names=objective_names, row_name=["Best reachable"]
+        zs=intermediate_ranges, names=objective_names, row_name=["Best reachable"]
     )
 
-    return (options, title, columns, data, columns_best, data_best, 0)
+    return (options, title, columns, data, columns_best, data_best, default_candidate, final)
 
 
 def main():
