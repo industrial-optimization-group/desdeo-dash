@@ -11,6 +11,7 @@ dash = "^1.2"
 dash-daq = "^0.1.7"
 pandas = "^0.25.1"
 sklearn = "^0.0.0"
+desdeo-mcdm = { git = "https://github.com/industrial-optimization-group/desdeo-mcdm", branch="navigator" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^3.0"
@@ -19,6 +20,8 @@ mypy = "^0.720.0"
 isort = "^4.3"
 black = {version = "^18.3-alpha.0", allows-prereleases = true}
 docformatter = "^1.3"
+pylint = "^2.4.4"
+rope = "^0.16.0"
 
 [build-system]
 requires = ["poetry>=0.12"]
