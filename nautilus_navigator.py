@@ -25,6 +25,7 @@ from dash.dependencies import Input, Output, State, ALL
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 app.title = "NAUTILUS Navigator"
+app.config.suppress_callback_exceptions = True
 
 
 class SessionManager:
@@ -210,6 +211,9 @@ def layout():
             html.Div(id="page-content"),
         ]
     )
+
+
+app.layout = layout
 
 
 def index(uid):
@@ -774,8 +778,6 @@ def upload_and_make_method(n, uid, json_data):
 
 def main():
     SessionManager.config(10)
-    app.config.suppress_callback_exceptions = True
-    app.layout = layout
     # False to prevent doble loading
     app.run_server(debug=True, use_reloader=False)
 
