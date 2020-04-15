@@ -72,7 +72,9 @@ class SessionManager:
             return None
 
     @staticmethod
-    def add_request(request: NautilusNavigatorRequest, uid: str) -> bool:
+    def add_request(
+        request: NautilusNavigatorRequest, uid: str, index: int = -1
+    ) -> bool:
         # check key
         if not uid in SessionManager.METHOD_CACHE:
             return False
@@ -80,16 +82,23 @@ class SessionManager:
         if not uid in SessionManager.REQUEST_CACHE:
             SessionManager.REQUEST_CACHE[uid] = []
 
-        SessionManager.REQUEST_CACHE[uid].append(request)
+        if index == -1:
+            SessionManager.REQUEST_CACHE[uid].append(request)
+        else:
+            SessionManager.REQUEST_CACHE[uid] = SessionManager.REQUEST_CACHE[
+                uid
+            ][:index] + [request]
 
         return True
 
     @staticmethod
-    def get_request(uid: str) -> Union[NautilusNavigatorRequest, None]:
+    def get_request(
+        uid: str, index: int = -1
+    ) -> Union[NautilusNavigatorRequest, None]:
         if not uid in SessionManager.REQUEST_CACHE:
             return None
 
-        return SessionManager.REQUEST_CACHE[uid][-1]
+        return SessionManager.REQUEST_CACHE[uid][index]
 
 
 def update_fig(request, fig, minimize):
@@ -342,7 +351,7 @@ def navigation_layout(session_id):
                 id="storage-div",
                 style={"display": "none"},
             ),
-            html.H1(f"Session id: {session_id}", id="h1"),
+            html.H1(f"Navigation", id="solution-reached"),
             html.Div(
                 html.H6(
                     "Current aspiration levels: "
@@ -529,6 +538,8 @@ def show_input(value):
     [
         Output("navigation-graph", "figure"),
         Output("last-navigation-graph", "figure"),
+        Output("previous-point-selection", "value"),
+        Output("solution-reached", "children"),
     ],
     [
         Input("stepper", "n_intervals"),
@@ -537,12 +548,21 @@ def show_input(value):
     [
         State("session-id", "children"),
         State("previous-point-selection", "value"),
+        State("previous-point-input", "value"),
         State("stepper", "interval"),
         State("last-navigation-graph", "figure"),
+        State("solution-reached", "children"),
     ],
 )
 def update_navigation_graph(
-    n_intervals, values, uid, go_to_prevous, interval, fig
+    n_intervals,
+    values,
+    uid,
+    go_to_previous,
+    previous_point,
+    interval,
+    fig,
+    solution_reached,
 ):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -550,19 +570,32 @@ def update_navigation_graph(
     method = SessionManager.get_method(uid)
     if trigger_id == "stepper":
         if n_intervals == 0:
-            return fig, fig
+            return fig, fig, "no", "Navigation ready"
 
-        last_request = SessionManager.get_request(uid)
+        if go_to_previous == "no":
+            last_request = SessionManager.get_request(uid)
+        elif previous_point and go_to_previous == "yes":
+            step = int(previous_point)
+            if step > 0 and step < method._step_number:
+                last_request = SessionManager.get_request(uid, step - 1)
+            else:
+                raise dash.exceptions.PreventUpdate
+        else:
+            raise dash.exceptions.PreventUpdate
 
-        print(last_request.content["steps_remaining"])
         if last_request.content["steps_remaining"] <= 1:
             # stop
-            return fig, fig
+            return (
+                fig,
+                fig,
+                "no",
+                f"Solutions navigated to {method._pareto_front[method._projection_index]*method._minimize}",
+            )
 
         response = {
             "reference_point": np.array(values) * method._minimize,
             "speed": int(1000 / interval),
-            "go_to_previous": False,
+            "go_to_previous": False if go_to_previous == "no" else True,
             "stop": False,
         }
 
@@ -570,11 +603,29 @@ def update_navigation_graph(
 
         new_request, _ = method.iterate(last_request)
 
-        new_fig = update_fig(new_request, fig, method._minimize)
+        SessionManager.add_request(
+            new_request, uid, -1 if go_to_previous == "no" else step - 1
+        )
 
-        SessionManager.add_request(new_request, uid)
+        if go_to_previous == "no":
+            new_fig = update_fig(new_request, fig, method._minimize)
+            return (
+                new_fig,
+                new_fig,
+                "no",
+                f"Navigating towards {method._pareto_front[method._projection_index]*method._minimize}",
+            )
+        else:
+            for i in range(method._ideal.shape[0]):
+                fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:step]
+                fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:step]
+                fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:step]
+                fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:step]
+                fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
+                    : method._step_number - 1
+                ] + method._steps_remaining * [values[i]]
 
-        return new_fig, new_fig
+            return fig, fig, "no", solution_reached
 
     else:
         for (i, value) in enumerate(values):
@@ -582,7 +633,7 @@ def update_navigation_graph(
                 : method._step_number - 1
             ] + method._steps_remaining * [value]
 
-        return fig, fig
+        return fig, fig, go_to_previous, solution_reached
 
 
 @app.callback(
@@ -592,6 +643,8 @@ def update_navigation_graph(
         Output("stepper", "interval"),
         Output("previous-input-div", "style"),
         Output({"type": "preference-slider", "index": ALL}, "disabled"),
+        Output("speed-slider", "disabled"),
+        Output("previous-point-selection", "options"),
     ],
     [Input("start-button", "n_clicks")],
     [State("speed-slider", "value"), State("preference-sliders", "children")],
@@ -604,6 +657,11 @@ def start_navigating(n, value, slider_children):
             (1 / value) * 1000,
             {"display": "none"},
             [True] * len(slider_children),
+            True,
+            [
+                {"disabled": True, "label": "Yes", "value": "yes"},
+                {"disabled": True, "label": "No", "value": "no"},
+            ],
         )
     else:
         return (
@@ -612,6 +670,11 @@ def start_navigating(n, value, slider_children):
             (1 / value) * 1000,
             {"display": "inline-block"},
             [False] * len(slider_children),
+            False,
+            [
+                {"disabled": False, "label": "Yes", "value": "yes"},
+                {"disabled": False, "label": "No", "value": "no"},
+            ],
         )
 
 
@@ -629,10 +692,8 @@ def update_output(value):
 )
 def display_page(pathname, uid):
     if pathname == "/navigate":
-        print(f"Session id to navigation layout: {uid}")
         return navigation_layout(uid)
     elif pathname == "/":
-        print(f"Session id to index layout: {uid}")
         return index(uid)
     else:
         raise dash.exceptions.PreventUpdate
@@ -704,8 +765,6 @@ def upload_and_make_method(n, uid, json_data):
         )
 
         SessionManager.add_method(method, uid)
-
-        print(SessionManager.get_method(uid))
 
         return {"display": "inline"}, False, ""
 
