@@ -92,25 +92,6 @@ class SessionManager:
         return SessionManager.REQUEST_CACHE[uid][-1]
 
 
-def create_method():
-    f1 = np.linspace(1, 100, 50)
-    f2 = f1[::-1] ** 2
-
-    pfront = np.stack((f1, f2)).T
-    ideal = np.min(pfront, axis=0)
-    nadir = np.max(pfront, axis=0)
-
-    method = NautilusNavigator(
-        pfront,
-        ideal,
-        nadir,
-        objective_names=["price", "pain"],
-        maximize=[-1, -1],
-    )
-
-    return method
-
-
 def update_fig(request, fig, minimize):
     content = request.content
     lower_bound = content["reachable_lb"] * minimize
@@ -385,9 +366,15 @@ def navigation_layout(session_id):
                                             "type": "preference-slider",
                                             "index": i,
                                         },
-                                        min=ideal[i],
-                                        max=nadir[i],
-                                        value=ideal[i],
+                                        min=ideal[i]
+                                        if is_minimize[i] == 1
+                                        else -nadir[i],
+                                        max=nadir[i]
+                                        if is_minimize[i] == 1
+                                        else -ideal[i],
+                                        value=ideal[i]
+                                        if is_minimize[i] == 1
+                                        else -ideal[i],
                                         step=abs(nadir[i] - ideal[i]) / 100,
                                         updatemode="drag",
                                         vertical=True,
@@ -513,11 +500,10 @@ def update_preferences(values, uid):
     method = SessionManager.get_method(uid)
     objective_names = method._objective_names
     n_objectives = method._ideal.shape[0]
-    is_minimize = method._minimize
 
     res = "Current aspiration levels: " + ", ".join(
         [
-            f"(f{i+1}){objective_names[i]}: {values[i]*is_minimize[i]}"
+            f"(f{i+1}){objective_names[i]}: {values[i]}"
             for i in range(n_objectives)
         ]
     )
@@ -545,13 +531,19 @@ def show_input(value):
         Output("last-navigation-graph", "figure"),
     ],
     [
-        Input("session-id", "children"),
         Input("stepper", "n_intervals"),
         Input({"type": "preference-slider", "index": ALL}, "value"),
     ],
-    [State("stepper", "interval"), State("last-navigation-graph", "figure")],
+    [
+        State("session-id", "children"),
+        State("previous-point-selection", "value"),
+        State("stepper", "interval"),
+        State("last-navigation-graph", "figure"),
+    ],
 )
-def update_navigation_graph(uid, n_intervals, values, interval, fig):
+def update_navigation_graph(
+    n_intervals, values, uid, go_to_prevous, interval, fig
+):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
@@ -568,7 +560,7 @@ def update_navigation_graph(uid, n_intervals, values, interval, fig):
             return fig, fig
 
         response = {
-            "reference_point": np.array(values),
+            "reference_point": np.array(values) * method._minimize,
             "speed": int(1000 / interval),
             "go_to_previous": False,
             "stop": False,
@@ -588,7 +580,7 @@ def update_navigation_graph(uid, n_intervals, values, interval, fig):
         for (i, value) in enumerate(values):
             fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
                 : method._step_number - 1
-            ] + method._steps_remaining * [value * method._minimize[i]]
+            ] + method._steps_remaining * [value]
 
         return fig, fig
 
