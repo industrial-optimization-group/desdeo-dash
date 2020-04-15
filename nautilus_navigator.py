@@ -1,6 +1,10 @@
 from typing import Union
 from collections import OrderedDict
 import uuid
+import base64
+import datetime
+import csv
+import json
 
 import numpy as np
 
@@ -44,9 +48,9 @@ class SessionManager:
         is already stored for a given uuid)
 
         """
-        if uid in SessionManager.METHOD_CACHE:
-            # already in cache, do nothing
-            return False
+        # if uid in SessionManager.METHOD_CACHE:
+        #     # already in cache, do nothing
+        #     return False
 
         if len(SessionManager.METHOD_CACHE) > SessionManager.MAX_METHOD_STORE:
             # remove last element if cache is full (first in, first out)
@@ -107,10 +111,10 @@ def create_method():
     return method
 
 
-def update_fig(request, fig):
+def update_fig(request, fig, minimize):
     content = request.content
-    lower_bound = content["reachable_lb"]
-    upper_bound = content["reachable_ub"]
+    lower_bound = content["reachable_lb"] * minimize
+    upper_bound = content["reachable_ub"] * minimize
     steps_taken = content["step_number"]
 
     # response = request.response
@@ -120,14 +124,22 @@ def update_fig(request, fig):
         for j in range(2):
             fig["data"][3 * i + j]["x"] += (steps_taken,)
 
-        fig["data"][3 * i]["y"] += (lower_bound[i],)
-        fig["data"][3 * i + 1]["y"] += (upper_bound[i],)
+        # fig["data"][3 * i]["y"] += (lower_bound[i] * minimize[i],)
+        # fig["data"][3 * i + 1]["y"] += (upper_bound[i] * minimize[i],)
+
+        fig["data"][3 * i]["y"] += (
+            (lower_bound[i],) if minimize[i] == 1 else (upper_bound[i],)
+        )
+        fig["data"][3 * i + 1]["y"] += (
+            (upper_bound[i],) if minimize[i] == 1 else (lower_bound[i],)
+        )
+
         # fig["data"][3 * i + 2]["y"] += (aspiration_levels[i],)
 
     return fig
 
 
-def make_fig(request):
+def make_fig(request, minimize):
     n_objectives = request.content["ideal"].shape[0]
     steps_remaining = request.content["steps_remaining"]
 
@@ -176,19 +188,152 @@ def make_fig(request):
             col=1,
         )
 
-    fig = update_fig(request, fig)
+    fig = update_fig(request, fig, minimize)
     return fig
 
 
-def create_app_layout():
-    session_id = str(uuid.uuid4())
+def parse_file_contents(contents, filename, date):
+    content_type, content_string = contents.split(",")
 
-    method = create_method()
+    decoded = base64.b64decode(content_string).decode("utf-8").splitlines()
+    objective_names = list(map(lambda x: x.strip(), decoded[0].split(sep=",")))
+    multiplier = list(map(lambda x: int(x.strip()), decoded[1].split(sep=",")))
+    objective_values = np.genfromtxt(decoded[2:], delimiter=",").tolist()
+
+    mod_date = datetime.datetime.fromtimestamp(date)
+
+    parsed_contents = {
+        "objective_names": objective_names,
+        "multiplier": multiplier,
+        "objective_values": objective_values,
+    }
+
+    return parsed_contents, content_type, mod_date
+
+
+def layout():
+    session_id = str(uuid.uuid4())
+    return html.Div(
+        [
+            html.Div(session_id, id="session-id", style={"display": "none"}),
+            dcc.Location(id="url", refresh=False),
+            html.Div(id="page-content"),
+        ]
+    )
+
+
+def index(uid):
+    return html.Div(
+        [
+            dcc.Store(id="upload-data-storage"),
+            dcc.ConfirmDialog(id="alert-bad-upload"),
+            html.Div(uid, id="session-id", style={"display": "none"}),
+            html.H2(
+                "NAUTILUS Navigator data-based interactive multiobjective optimization demonstration"
+            ),
+            html.H3("Data upload"),
+            html.P(
+                (
+                    "To begin, upload a file. The file should contain "
+                    "objective values separeted by commas on its columns (a "
+                    "CSV file is fine). The values of the first row "
+                    "should indicate if an objective is to be minimized or maximized: "
+                    "'1' indicates minimization and '-1' indicates maximization. A "
+                    "header starting with a '#' may also be provided with objective "
+                    "names. Dominated solutions will be eliminated from the data."
+                )
+            ),
+            html.Br(),
+            dcc.Markdown(
+                """
+            Example of file contents:
+            ```
+            # price quality time
+            1 -1 1
+            5.2, 3.3, 10.1
+            3.2, 2.2, 11.1
+            4.2, 1.1, 9.8
+            ```
+            """
+            ),
+            dcc.Upload(
+                id="upload-data",
+                children=html.Div(["Drag and Drop or ", html.A("Select File")]),
+                style={
+                    "width": "100%",
+                    "height": "60px",
+                    "lineHeight": "60px",
+                    "borderWidth": "1px",
+                    "borderStyle": "dashed",
+                    "borderRadius": "5px",
+                    "textAlign": "center",
+                    "margin": "10px",
+                },
+                # Do not allow multiple files to be uploaded
+                multiple=False,
+            ),
+            html.Div(
+                html.Button(
+                    "UPLOAD",
+                    n_clicks=0,
+                    id="upload-data-button",
+                    style={
+                        "width": "100%",
+                        "height": "60px",
+                        "lineHeight": "60px",
+                        "borderWidth": "1px",
+                        "borderStyle": "solid",
+                        "borderRadius": "10px",
+                        "textAlign": "center",
+                        "margin": "10px",
+                        "color": "black",
+                        "background-color": "#ffffd1",
+                    },
+                ),
+                id="upload-data-button-div",
+                style={"text-align": "center", "display": "none"},
+            ),
+            html.Div(
+                html.Button(
+                    dcc.Link(
+                        "Start navigation",
+                        href="/navigate",
+                        style={
+                            "width": "100%",
+                            "height": "100%",
+                            "display": "block",
+                        },
+                    ),
+                    style={
+                        "width": "100%",
+                        "height": "60px",
+                        "lineHeight": "60px",
+                        "borderWidth": "1px",
+                        "borderStyle": "solid",
+                        "borderRadius": "10px",
+                        "textAlign": "center",
+                        "margin": "10px",
+                        "color": "black",
+                        "background-color": "#e7e7e7",
+                    },
+                ),
+                id="start-navigating-button-div",
+                style={"text-align": "center", "display": "none"},
+            ),
+            dcc.Markdown("", id="uploaded-data-preview"),
+            html.Br(),
+        ]
+    )
+
+
+def navigation_layout(session_id):
+    # get method from session manager
+    method = SessionManager.get_method(session_id)
 
     n_objectives = method._ideal.shape[0]
     ideal = method._ideal
     nadir = method._nadir
-    is_maximize = method._maximize
+    is_minimize = method._minimize
     objective_names = method._objective_names
 
     request, _ = method.start()
@@ -201,9 +346,8 @@ def create_app_layout():
     }
     request.response = response
 
-    fig = make_fig(request)
+    fig = make_fig(request, is_minimize)
 
-    SessionManager.add_method(method, session_id)
     SessionManager.add_request(request, session_id)
 
     i = 1
@@ -241,15 +385,15 @@ def create_app_layout():
                                             "type": "preference-slider",
                                             "index": i,
                                         },
-                                        min=ideal[i] * -is_maximize[i],
-                                        max=nadir[i] * -is_maximize[i],
-                                        value=ideal[i] * -is_maximize[i],
+                                        min=ideal[i],
+                                        max=nadir[i],
+                                        value=ideal[i],
                                         step=abs(nadir[i] - ideal[i]) / 100,
                                         updatemode="drag",
                                         vertical=True,
                                     ),
                                     html.Div(
-                                        f"({'MIN' if not is_maximize[i] == 1 else 'MAX'})f{i+1}",
+                                        f"({'MIN' if is_minimize[i] == 1 else 'MAX'})f{i+1}",
                                         id=f"text-f{i}",
                                     ),
                                 ],
@@ -369,13 +513,11 @@ def update_preferences(values, uid):
     method = SessionManager.get_method(uid)
     objective_names = method._objective_names
     n_objectives = method._ideal.shape[0]
-    is_maximize = method._maximize
-
-    print(is_maximize)
+    is_minimize = method._minimize
 
     res = "Current aspiration levels: " + ", ".join(
         [
-            f"(f{i+1}){objective_names[i]}: {values[i]*-is_maximize[i]}"
+            f"(f{i+1}){objective_names[i]}: {values[i]*is_minimize[i]}"
             for i in range(n_objectives)
         ]
     )
@@ -436,7 +578,7 @@ def update_navigation_graph(uid, n_intervals, values, interval, fig):
 
         new_request, _ = method.iterate(last_request)
 
-        new_fig = update_fig(new_request, fig)
+        new_fig = update_fig(new_request, fig, method._minimize)
 
         SessionManager.add_request(new_request, uid)
 
@@ -446,7 +588,7 @@ def update_navigation_graph(uid, n_intervals, values, interval, fig):
         for (i, value) in enumerate(values):
             fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
                 : method._step_number - 1
-            ] + method._steps_remaining * [value]
+            ] + method._steps_remaining * [value * method._minimize[i]]
 
         return fig, fig
 
@@ -489,12 +631,102 @@ def update_output(value):
     return f"Selected speed {value}"
 
 
+@app.callback(
+    Output("page-content", "children"),
+    [Input("url", "pathname"), Input("session-id", "children")],
+)
+def display_page(pathname, uid):
+    if pathname == "/navigate":
+        print(f"Session id to navigation layout: {uid}")
+        return navigation_layout(uid)
+    elif pathname == "/":
+        print(f"Session id to index layout: {uid}")
+        return index(uid)
+    else:
+        raise dash.exceptions.PreventUpdate
+
+
+@app.callback(
+    [
+        Output("uploaded-data-preview", "children"),
+        Output("upload-data-button-div", "style"),
+        Output("upload-data-storage", "data"),
+    ],
+    [Input("upload-data", "contents")],
+    [State("upload-data", "filename"), State("upload-data", "last_modified")],
+)
+def update_data_preview(content, file_name, mod_date):
+    if not content:
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        _contents, _file_name, _mod_date = parse_file_contents(
+            content, file_name, mod_date
+        )
+        nl = "\n\n"
+        n = "\n"
+        res = (
+            f"## Data preview{nl}"
+            f"Content type: `{_file_name}`{nl}"
+            f"Last modified: `{_mod_date}`{nl}"
+            f"Content:{nl}"
+            f"```{nl}"
+            f"#{', '.join(_contents['objective_names'])}{n}"
+            f"{', '.join(['Min' if i == 1 else 'Max' for i in _contents['multiplier']])}{n}"
+            f"{n.join([', '.join(list(map(lambda x: str(x), content))) for content in _contents['objective_values'][:10]])}"
+            f"{nl}```"
+        )
+        return res, {"display": "inline"}, json.dumps(_contents)
+    except Exception as e:
+        return (
+            f"An exception occurred when reading the file: {str(e)}",
+            {"display": "none"},
+            "",
+        )
+
+
+@app.callback(
+    [
+        Output("start-navigating-button-div", "style"),
+        Output("alert-bad-upload", "displayed"),
+        Output("alert-bad-upload", "message"),
+    ],
+    [Input("upload-data-button", "n_clicks")],
+    [State("session-id", "children"), State("upload-data-storage", "data")],
+)
+def upload_and_make_method(n, uid, json_data):
+    if n < 1:
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        dict_data = json.loads(json_data)
+        multiplier = dict_data["multiplier"]
+        objective_values = np.array(dict_data["objective_values"]) * multiplier
+        objective_names = dict_data["objective_names"]
+
+        ideal = np.min(objective_values, axis=0)
+        nadir = np.max(objective_values, axis=0)
+
+        method = NautilusNavigator(
+            objective_values, ideal, nadir, objective_names, multiplier
+        )
+
+        SessionManager.add_method(method, uid)
+
+        print(SessionManager.get_method(uid))
+
+        return {"display": "inline"}, False, ""
+
+    except Exception as e:
+        return {"display": "none"}, True, str(e)
+
+
 def main():
     SessionManager.config(10)
-
-    app.layout = create_app_layout
+    app.config.suppress_callback_exceptions = True
+    app.layout = layout
     # False to prevent doble loading
-    app.run_server(debug=True, use_reloader=True)
+    app.run_server(debug=True, use_reloader=False)
 
 
 if __name__ == "__main__":
