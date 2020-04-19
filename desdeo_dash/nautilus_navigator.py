@@ -29,7 +29,7 @@ app.config.suppress_callback_exceptions = True
 
 
 class SessionManager:
-    MAX_METHOD_STORE = None
+    MAX_METHOD_STORE = 100
     METHOD_CACHE = OrderedDict()
     REQUEST_CACHE = OrderedDict()
 
