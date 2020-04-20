@@ -8,6 +8,8 @@ import json
 
 import numpy as np
 
+np.set_printoptions(precision=2)
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -179,6 +181,22 @@ def make_fig(request, minimize):
             col=1,
         )
 
+    # fig.update_layout(
+    #     dict(
+    #         shapes=[
+    #             {
+    #                 "type": "line",
+    #                 "x0": 0,
+    #                 "x1": 1,
+    #                 "xref": "paper",
+    #                 "y0": 3,
+    #                 "y1": 3,
+    #                 "yref": "y",
+    #                 "line": {"width": 4, "color": "rgb(30, 30, 30)"},
+    #             }
+    #         ]
+    #     )
+    # )
     fig = update_fig(request, fig, minimize)
     return fig
 
@@ -357,9 +375,9 @@ def navigation_layout(session_id):
             ),
             html.H1(f"Navigation", id="solution-reached"),
             html.Div(
-                html.H6(
+                html.H3(
                     "Current aspiration levels: "
-                    + ", ".join(
+                    + "; ".join(
                         [
                             f"(f{i+1}){objective_names[i]}: {ideal[i]}"
                             for i in range(n_objectives)
@@ -407,6 +425,7 @@ def navigation_layout(session_id):
                     dcc.Graph(
                         id="navigation-graph",
                         figure=fig,
+                        # config={"edits": {"shapePosition": True}},
                         className="ten columns",
                     ),
                     dcc.Interval(
@@ -486,6 +505,11 @@ def navigation_layout(session_id):
                                         style={"display": "none"},
                                         className="six columns",
                                     ),
+                                    html.Button(
+                                        "Ok",
+                                        id="previous-point-ok-button",
+                                        style={"display": "none"},
+                                    ),
                                 ],
                                 id="previous-input-div",
                                 className="six columns",
@@ -514,9 +538,9 @@ def update_preferences(values, uid):
     objective_names = method._objective_names
     n_objectives = method._ideal.shape[0]
 
-    res = "Current aspiration levels: " + ", ".join(
+    res = "Current aspiration levels: " + "; ".join(
         [
-            f"(f{i+1}){objective_names[i]}: {values[i]}"
+            f"(f{i+1}){objective_names[i]}: {values[i]:.2e}"
             for i in range(n_objectives)
         ]
     )
@@ -528,14 +552,15 @@ def update_preferences(values, uid):
     [
         Output("previous-point-text", "style"),
         Output("previous-point-input", "style"),
+        Output("previous-point-ok-button", "style"),
     ],
     [Input("previous-point-selection", "value")],
 )
 def show_input(value):
     if value == "yes":
-        return {"display": "block"}, {"display": "block"}
+        return {"display": "block"}, {"display": "block"}, {"display": "block"}
     else:
-        return {"display": "none"}, {"display": "none"}
+        return {"display": "none"}, {"display": "none"}, {"display": "none"}
 
 
 @app.callback(
@@ -548,6 +573,7 @@ def show_input(value):
     [
         Input("stepper", "n_intervals"),
         Input({"type": "preference-slider", "index": ALL}, "value"),
+        Input("previous-point-ok-button", "n_clicks"),
     ],
     [
         State("session-id", "children"),
@@ -561,6 +587,7 @@ def show_input(value):
 def update_navigation_graph(
     n_intervals,
     values,
+    prev_input_clicks,
     uid,
     go_to_previous,
     previous_point,
@@ -572,20 +599,12 @@ def update_navigation_graph(
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
     method = SessionManager.get_method(uid)
+    print("step", method._step_number)
     if trigger_id == "stepper":
         if n_intervals == 0:
-            return fig, fig, "no", "Navigation ready"
+            return fig, fig, "no", "Ready to navigate"
 
-        if go_to_previous == "no":
-            last_request = SessionManager.get_request(uid)
-        elif previous_point and go_to_previous == "yes":
-            step = int(previous_point)
-            if step > 0 and step < method._step_number:
-                last_request = SessionManager.get_request(uid, step - 1)
-            else:
-                raise dash.exceptions.PreventUpdate
-        else:
-            raise dash.exceptions.PreventUpdate
+        last_request = SessionManager.get_request(uid)
 
         if last_request.content["steps_remaining"] <= 1:
             # stop
@@ -593,13 +612,13 @@ def update_navigation_graph(
                 fig,
                 fig,
                 "no",
-                f"Solutions navigated to {method._pareto_front[method._projection_index]*method._minimize}",
+                f"Solution navigated to {method._pareto_front[method._projection_index]*method._minimize}",
             )
 
         response = {
             "reference_point": np.array(values) * method._minimize,
             "speed": int(1000 / interval),
-            "go_to_previous": False if go_to_previous == "no" else True,
+            "go_to_previous": False,
             "stop": False,
         }
 
@@ -607,37 +626,64 @@ def update_navigation_graph(
 
         new_request, _ = method.iterate(last_request)
 
-        SessionManager.add_request(
-            new_request, uid, -1 if go_to_previous == "no" else step - 1
-        )
+        SessionManager.add_request(new_request, uid)
 
-        if go_to_previous == "no":
-            new_fig = update_fig(new_request, fig, method._minimize)
-            return (
-                new_fig,
-                new_fig,
-                "no",
-                f"Navigating towards {method._pareto_front[method._projection_index]*method._minimize}",
-            )
+        new_fig = update_fig(new_request, fig, method._minimize)
+        return (new_fig, new_fig, "no", f"Navigating...")
+        # else:
+        #     raise dash.exceptions.PreventUpdate
+        #     # for i in range(method._ideal.shape[0]):
+        #     #     fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:step]
+        #     #     fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:step]
+        #     #     fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:step]
+        #     #     fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:step]
+        #     #     fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
+        #     #         : method._step_number - 1
+        #     #     ] + method._steps_remaining * [values[i]]
+
+        #     # return fig, fig, "no", solution_reached
+
+    elif trigger_id == "previous-point-ok-button":
+        if prev_input_clicks == 0:
+            raise dash.exceptions.PreventUpdate
+
+        step = int(previous_point)
+        if step > 0 and step < method._step_number:
+            last_request = SessionManager.get_request(uid, step - 1)
         else:
-            for i in range(method._ideal.shape[0]):
-                fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:step]
-                fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:step]
-                fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:step]
-                fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:step]
-                fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
-                    : method._step_number - 1
-                ] + method._steps_remaining * [values[i]]
+            print("prevent")
+            raise dash.exceptions.PreventUpdate
 
-            return fig, fig, "no", solution_reached
+        response = {
+            "reference_point": np.array(values) * method._minimize,
+            "speed": int(1000 / interval),
+            "go_to_previous": True,
+            "stop": False,
+        }
+
+        last_request.response = response
+
+        new_request, _ = method.iterate(last_request)
+
+        SessionManager.add_request(new_request, uid, step - 1)
+        print("cache", len(SessionManager.REQUEST_CACHE[uid]))
+
+        for i in range(method._ideal.shape[0]):
+            fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:step]
+            fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:step]
+            fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:step]
+            fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:step]
+            fig["data"][3 * i + 2]["y"] = 100 * [values[i]]
+
+        return fig, fig, "no", "Ready to navigate"
 
     else:
         for (i, value) in enumerate(values):
-            fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
-                : method._step_number - 1
-            ] + method._steps_remaining * [value]
-
-        return fig, fig, go_to_previous, solution_reached
+            # fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
+            #     : method._step_number - 1
+            # ] + method._steps_remaining * [value]
+            fig["data"][3 * i + 2]["y"] = 100 * [value]
+        return fig, fig, go_to_previous, "Ready to navigate"
 
 
 @app.callback(
