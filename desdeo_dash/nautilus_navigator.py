@@ -240,8 +240,18 @@ def index(uid):
             dcc.Store(id="upload-data-storage"),
             dcc.ConfirmDialog(id="alert-bad-upload"),
             html.Div(uid, id="session-id", style={"display": "none"}),
+            html.Img(
+                src=app.get_asset_url("nautilus_navigator_logo.png"),
+                style={
+                    "width": "18%",
+                    "position": "absolute",
+                    "top": "0px",
+                    "right": "2.5%",
+                },
+            ),
             html.H2(
-                "NAUTILUS Navigator data-based interactive multiobjective optimization demonstration"
+                "NAUTILUS Navigator data-based interactive multiobjective optimization demonstration",
+                style={"width": "75%"},
             ),
             html.H3("Data upload"),
             html.P(
@@ -253,7 +263,13 @@ def index(uid):
                     "'1' indicates minimization and '-1' indicates maximization. A "
                     "header starting with a '#' may also be provided with objective "
                     "names. Dominated solutions will be eliminated from the data."
-                )
+                ),
+                style={
+                    "width": "75%",
+                    # "white-space": "nowrap",
+                    # "overflow": "hidden",
+                    # "text-overflow": "ellipsis",
+                },
             ),
             html.Br(),
             dcc.Markdown(
@@ -272,7 +288,7 @@ def index(uid):
                 id="upload-data",
                 children=html.Div(["Drag and Drop or ", html.A("Select File")]),
                 style={
-                    "width": "100%",
+                    "width": "80%",
                     "height": "60px",
                     "lineHeight": "60px",
                     "borderWidth": "1px",
@@ -290,7 +306,7 @@ def index(uid):
                     n_clicks=0,
                     id="upload-data-button",
                     style={
-                        "width": "100%",
+                        "width": "80%",
                         "height": "60px",
                         "lineHeight": "60px",
                         "borderWidth": "1px",
@@ -317,7 +333,7 @@ def index(uid):
                         },
                     ),
                     style={
-                        "width": "100%",
+                        "width": "80%",
                         "height": "60px",
                         "lineHeight": "60px",
                         "borderWidth": "1px",
@@ -334,7 +350,8 @@ def index(uid):
             ),
             dcc.Markdown("", id="uploaded-data-preview"),
             html.Br(),
-        ]
+        ],
+        style={"left": "2.5%", "right": "2.5%"},
     )
 
 
