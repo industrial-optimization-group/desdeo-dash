@@ -132,12 +132,25 @@ def update_fig(request, fig, minimize):
     return fig
 
 
-def make_fig(request, minimize):
+def make_fig(request, minimize, objective_names, multipliers):
     n_objectives = request.content["ideal"].shape[0]
     steps_remaining = request.content["steps_remaining"]
 
-    fig = make_subplots(rows=n_objectives, cols=1, shared_xaxes=True)
-    fig.update_xaxes(title_text="step", row=n_objectives, col=1)
+    sub_plot_names = []
+    for i, name in enumerate(objective_names):
+        sub_plot_names.append(
+            name + " (MIN)" if multipliers[i] == 1 else name + " (MAX)"
+        )
+
+    fig = make_subplots(
+        rows=n_objectives,
+        cols=1,
+        shared_xaxes=True,
+        x_title="Step n",
+        y_title="Obj. value",
+        subplot_titles=sub_plot_names,
+    )
+    fig.update_xaxes(row=n_objectives, col=1)
     fig.update_xaxes(range=[0, steps_remaining + 1])
     for i in range(n_objectives):
         # lower bound
@@ -148,7 +161,8 @@ def make_fig(request, minimize):
                 name="Lower bound of reachable solutions",
                 mode="lines",
                 line_color="green",
-                fillcolor="green",
+                # fillcolor="green",
+                showlegend=True if i == 0 else False,
             ),
             row=i + 1,
             col=1,
@@ -161,7 +175,9 @@ def make_fig(request, minimize):
                 name="Upper bound of reachable solutions",
                 mode="lines",
                 line_color="red",
-                fillcolor="red",
+                fillcolor="rgba(52, 235, 70, 0.5)",
+                fill="tonexty",
+                showlegend=True if i == 0 else False,
             ),
             row=i + 1,
             col=1,
@@ -176,12 +192,14 @@ def make_fig(request, minimize):
                 mode="lines",
                 line_color="black",
                 fillcolor="black",
+                showlegend=True if i == 0 else False,
             ),
             row=i + 1,
             col=1,
         )
 
-    # fig.update_layout(
+    fig.update_layout({"title": "Navigation", "height": 600})
+    # fig.update_layout({"plot_bgcolor": "red"})
     #     dict(
     #         shapes=[
     #             {
@@ -207,7 +225,20 @@ def parse_file_contents(contents, filename, date):
     decoded = base64.b64decode(content_string).decode("utf-8").splitlines()
     objective_names = list(map(lambda x: x.strip(), decoded[0].split(sep=",")))
     multiplier = list(map(lambda x: int(x.strip()), decoded[1].split(sep=",")))
-    objective_values = np.genfromtxt(decoded[2:], delimiter=",").tolist()
+    multiplier_ = np.array(multiplier)
+    objective_values_ = np.genfromtxt(decoded[2:], delimiter=",")
+    # check for dominated solutions
+    tmp = np.zeros(objective_values_.shape)
+
+    # assume all to be minimized, drop dominated solutions
+    for (i, e) in enumerate(objective_values_ * multiplier_):
+        condition = np.any(np.all(e > objective_values_, axis=1))
+        if not condition:
+            tmp[i] = e
+        else:
+            tmp[i] = np.nan
+
+    objective_values = (tmp[~np.isnan(tmp).any(axis=1)] * multiplier_).tolist()
 
     mod_date = datetime.datetime.fromtimestamp(date)
 
@@ -258,11 +289,11 @@ def index(uid):
                 (
                     "To begin, upload a file. The file should contain "
                     "objective values separeted by commas on its columns (a "
-                    "CSV file is fine). The values of the first row "
+                    "CSV file is fine). The first row should contain the objective names. "
+                    "The values of the second row "
                     "should indicate if an objective is to be minimized or maximized: "
-                    "'1' indicates minimization and '-1' indicates maximization. A "
-                    "header starting with a '#' may also be provided with objective "
-                    "names. Dominated solutions will be eliminated from the data."
+                    "'1' indicates minimization and '-1' indicates maximization. "
+                    "Dominated solutions will be eliminated from the data."
                 ),
                 style={
                     "width": "75%",
@@ -274,9 +305,9 @@ def index(uid):
             html.Br(),
             dcc.Markdown(
                 """
-            Example of file contents:
+            Example of file contents (min, max, min):
             ```
-            # price quality time
+            price quality time
             1 -1 1
             5.2, 3.3, 10.1
             3.2, 2.2, 11.1
@@ -299,27 +330,6 @@ def index(uid):
                 },
                 # Do not allow multiple files to be uploaded
                 multiple=False,
-            ),
-            html.Div(
-                html.Button(
-                    "UPLOAD",
-                    n_clicks=0,
-                    id="upload-data-button",
-                    style={
-                        "width": "80%",
-                        "height": "60px",
-                        "lineHeight": "60px",
-                        "borderWidth": "1px",
-                        "borderStyle": "solid",
-                        "borderRadius": "10px",
-                        "textAlign": "center",
-                        "margin": "10px",
-                        "color": "black",
-                        "background-color": "#ffffd1",
-                    },
-                ),
-                id="upload-data-button-div",
-                style={"text-align": "center", "display": "none"},
             ),
             html.Div(
                 html.Button(
@@ -348,8 +358,38 @@ def index(uid):
                 id="start-navigating-button-div",
                 style={"text-align": "center", "display": "none"},
             ),
+            html.Div(
+                html.Button(
+                    "UPLOAD",
+                    n_clicks=0,
+                    id="upload-data-button",
+                    style={
+                        "width": "80%",
+                        "height": "60px",
+                        "lineHeight": "60px",
+                        "borderWidth": "1px",
+                        "borderStyle": "solid",
+                        "borderRadius": "10px",
+                        "textAlign": "center",
+                        "margin": "10px",
+                        "color": "black",
+                        "background-color": "#ffffd1",
+                    },
+                ),
+                id="upload-data-button-div",
+                style={"text-align": "center", "display": "none"},
+            ),
             dcc.Markdown("", id="uploaded-data-preview"),
             html.Br(),
+            html.A(
+                "Source code for this website",
+                href="https://github.com/gialmisi/desdeo-dash",
+            ),
+            html.Br(),
+            html.A(
+                "Source code for the NAUTILUS Navigator implementation",
+                href="https://github.com/industrial-optimization-group/desdeo-mcdm",
+            ),
         ],
         style={"left": "2.5%", "right": "2.5%"},
     )
@@ -375,7 +415,7 @@ def navigation_layout(session_id):
     }
     request.response = response
 
-    fig = make_fig(request, is_minimize)
+    fig = make_fig(request, is_minimize, objective_names, is_minimize)
 
     SessionManager.add_request(request, session_id)
 
@@ -616,7 +656,6 @@ def update_navigation_graph(
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
     method = SessionManager.get_method(uid)
-    print("step", method._step_number)
     if trigger_id == "stepper":
         if n_intervals == 0:
             return fig, fig, "no", "Ready to navigate"
@@ -668,7 +707,6 @@ def update_navigation_graph(
         if step > 0 and step < method._step_number:
             last_request = SessionManager.get_request(uid, step - 1)
         else:
-            print("prevent")
             raise dash.exceptions.PreventUpdate
 
         response = {
@@ -683,7 +721,6 @@ def update_navigation_graph(
         new_request, _ = method.iterate(last_request)
 
         SessionManager.add_request(new_request, uid, step - 1)
-        print("cache", len(SessionManager.REQUEST_CACHE[uid]))
 
         for i in range(method._ideal.shape[0]):
             fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:step]
