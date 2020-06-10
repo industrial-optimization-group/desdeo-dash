@@ -11,10 +11,10 @@ import dash_html_components as html
 import numpy as np
 import plotly.graph_objects as go
 from dash.dependencies import ALL, Input, Output, State
+from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
 from plotly.subplots import make_subplots
 
 from desdeo_dash.server import app
-from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
 
 np.set_printoptions(precision=2)
 
@@ -352,12 +352,8 @@ def index(uid):
             ),
             dcc.Markdown("", id="uploaded-data-preview"),
             html.Br(),
-            html.A("Source code for this website", href="https://github.com/gialmisi/desdeo-dash"),
-            html.Br(),
-            html.A(
-                "Source code for the NAUTILUS Navigator implementation",
-                href="https://github.com/industrial-optimization-group/desdeo-mcdm",
-            ),
+            # Home button
+            html.Div(dcc.Link("Back to method index", href="/")),
         ],
         style={"left": "2.5%", "right": "2.5%"},
     )
@@ -502,6 +498,8 @@ def navigation_layout(session_id):
                 className="row",
                 style={"margin-top": "2.5%"},
             ),
+            # Home button
+            html.Div(dcc.Link("Back to method index", href="/")),
         ]
     )
 

@@ -31,14 +31,22 @@ def display_page(pathname, session_id):
     if pathname == "/":
         return html.Div(
             [
+                html.H1("Interactive multiobjective optimization: a hands-on experience!"),
+                html.H2("To begin, select a method:"),
                 dcc.Link(
-                    "Navigator NAUTILUS",
+                    "NAUTILUS Navigator",
                     href="/navigator/",
                     style={"width": "100%", "height": "100%", "display": "block"},
                 ),
                 dcc.Link(
                     "E-NAUTILUS", href="/enautilus/", style={"width": "100%", "height": "100%", "display": "block"}
                 ),
+                html.P("If the links don't work, try refreshing the page."),
+                html.A(
+                    "What are these methods?", href="https://desdeo-mcdm.readthedocs.io/en/latest/background/index.html"
+                ),
+                html.P(),
+                html.A("Source code for this website", href="https://github.com/gialmisi/desdeo-dash"),
             ]
         )
     elif pathname == "/navigator/":

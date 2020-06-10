@@ -11,11 +11,11 @@ import dash_html_components as html
 import dash_table
 import numpy as np
 from dash.dependencies import Input, Output, State
+from desdeo_mcdm.interactive.ENautilus import ENautilus, ENautilusInitialRequest, ENautilusRequest, ENautilusStopRequest
 from sklearn.preprocessing import MinMaxScaler
 
 from desdeo_dash import Plotter
 from desdeo_dash.server import app
-from desdeo_mcdm.interactive.ENautilus import ENautilus, ENautilusInitialRequest, ENautilusRequest, ENautilusStopRequest
 
 MANAGER_SIZE = 100
 
@@ -271,6 +271,8 @@ def index(uid: str):
                 style={"text-align": "center", "display": "none"},
             ),
             dcc.Markdown("", id="enautilus-uploaded-data-preview"),
+            # Home button
+            html.Div(dcc.Link("Back to method index", href="/")),
         ],
         style={"left": "2.5%", "right": "2.5%"},
     )
@@ -533,7 +535,6 @@ def update_candidates(n_clicks, uid, candidate_index):
 
     plotter = SessionManagerENautilus.get_plotter(uid)
 
-    print(intermediate_points)
     columns, data = plotter.make_table(zs=intermediate_points, names=method._objective_names)
 
     columns_best, data_best = plotter.make_table(
