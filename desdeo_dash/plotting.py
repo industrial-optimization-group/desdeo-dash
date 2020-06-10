@@ -1,13 +1,12 @@
-import numpy as np
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from typing import List, Optional, Tuple
-from plotly.graph_objs._figure import Figure
-import itertools
 import copy
+import itertools
+from typing import List, Optional, Tuple
 
-
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.graph_objs._figure import Figure
+from plotly.subplots import make_subplots
 
 
 class Plotter:
@@ -95,28 +94,21 @@ class Plotter:
         if names is None:
             names = ["Obj {}".format(i + 1) for i in range(zs.shape[1])]
         names = [
-            "{} ({})".format(name, val)
-            for (val, name) in zip(
-                ["⇧" if m is True else "⇩" for m in self.is_max], names
-            )
+            "{} ({})".format(name, val) for (val, name) in zip(["⇧" if m is True else "⇩" for m in self.is_max], names)
         ]
 
         if best is not None and best.ndim == 1:
             best = best.reshape(1, -1)
         if best is not None:
             best_original = self.scaler.inverse_transform(best)
-            best_original = np.where(
-                self.is_max, -best_original, best_original
-            )
+            best_original = np.where(self.is_max, -best_original, best_original)
             best = np.where(self.is_max, -best, best)
 
         if previous is not None and previous.ndim == 1:
             previous = previous.reshape(1, -1)
         if previous is not None:
             previous_original = self.scaler.inverse_transform(previous)
-            previous_original = np.where(
-                self.is_max, -previous_original, previous_original
-            )
+            previous_original = np.where(self.is_max, -previous_original, previous_original)
             previous = np.where(self.is_max, -previous, previous)
 
         rows, cols = dims
@@ -126,33 +118,22 @@ class Plotter:
         else:
             titles = labels
 
-        fig = make_subplots(
-            rows=rows,
-            cols=cols,
-            specs=[[{"type": "polar"}] * cols] * rows,
-            subplot_titles=titles,
-        )
+        fig = make_subplots(rows=rows, cols=cols, specs=[[{"type": "polar"}] * cols] * rows, subplot_titles=titles)
 
-        polars = ["polar"] + [
-            "polar{}".format(i + 1) for i in range(1, len(zs))
-        ]
+        polars = ["polar"] + ["polar{}".format(i + 1) for i in range(1, len(zs))]
 
         dicts = dict(
             zip(
                 polars,
                 # TODO range from scaler
-                [dict(radialaxis=dict(visible=False, range=[-1, 1]))]
-                * len(polars),
+                [dict(radialaxis=dict(visible=False, range=[-1, 1]))] * len(polars),
             )
         )
 
         fig.update_layout(
             **dicts,
             title=go.layout.Title(
-                text=(
-                    "Candidate solutions in Blue,\nbest reachable values in "
-                    "red,\nprevious solution in green."
-                ),
+                text=("Candidate solutions in Blue,\nbest reachable values in " "red,\nprevious solution in green."),
                 xref="container",
                 x=0.5,
                 xanchor="center",
@@ -231,10 +212,7 @@ class Plotter:
         return fig
 
     def _value_path_plot_candidates(
-        self,
-        zs: np.ndarray,
-        names: Optional[List[str]] = None,
-        labels: Optional[List[str]] = None,
+        self, zs: np.ndarray, names: Optional[List[str]] = None, labels: Optional[List[str]] = None
     ) -> Figure:
         """Plots multiple solution candidates as an parallel axis plot.
 
@@ -247,24 +225,17 @@ class Plotter:
         zs_original = self.scaler.inverse_transform(zs)
         zs_original = np.where(self.is_max, -zs_original, zs_original)
 
-        nadir_original = self.scaler.inverse_transform(
-            self.nadir.reshape(1, -1)
-        )[0]
+        nadir_original = self.scaler.inverse_transform(self.nadir.reshape(1, -1))[0]
         nadir_original = np.where(self.is_max, -nadir_original, nadir_original)
 
-        ideal_original = self.scaler.inverse_transform(
-            self.ideal.reshape(1, -1)
-        )[0]
+        ideal_original = self.scaler.inverse_transform(self.ideal.reshape(1, -1))[0]
         ideal_original = np.where(self.is_max, -ideal_original, ideal_original)
 
         if names is None:
             names = ["Obj {}".format(i + 1) for i in range(zs.shape[1])]
 
         names = [
-            "{} ({})".format(name, val)
-            for (val, name) in zip(
-                ["⇧" if m is True else "⇩" for m in self.is_max], names
-            )
+            "{} ({})".format(name, val) for (val, name) in zip(["⇧" if m is True else "⇩" for m in self.is_max], names)
         ]
 
         rows = [list(row) for row in zs_original.T]
@@ -282,9 +253,7 @@ class Plotter:
                     ]
                     + [
                         dict(range=[low, up], label=name, values=vals)
-                        for (low, up, name, vals) in zip(
-                            nadir_original, ideal_original, names, rows
-                        )
+                        for (low, up, name, vals) in zip(nadir_original, ideal_original, names, rows)
                     ]
                 )
             )
@@ -308,10 +277,8 @@ class Plotter:
             names (List[str], optional): List of the objective_names
 
         """
-        if zs is not None and zs.ndim == 1:
-            zs = zs.reshape(1, -1)
-
         if zs is not None:
+            zs = np.atleast_2d(zs)
             zs_original = self.scaler.inverse_transform(zs)
             zs_original = np.where(self.is_max, -zs_original, zs_original)
 
@@ -319,28 +286,19 @@ class Plotter:
             zs_original = xs
 
         if names is None:
-            names = [
-                "Obj {}".format(i + 1) for i in range(zs_original.shape[1])
-            ]
+            names = ["Obj {}".format(i + 1) for i in range(zs_original.shape[1])]
         if row_name is None:
             row_name = ["Candidate"]
 
         names = [
-            "{} ({})".format(name, val)
-            for (val, name) in zip(
-                ["⇧" if m is True else "⇩" for m in self.is_max], names
-            )
+            "{} ({})".format(name, val) for (val, name) in zip(["⇧" if m is True else "⇩" for m in self.is_max], names)
         ]
         names = row_name + names
 
         labeled = np.zeros((zs_original.shape[0], zs_original.shape[1] + 1))
-        labeled[:, 0] = np.linspace(
-            1, len(zs_original), num=len(zs_original), dtype=int
-        )
+        labeled[:, 0] = np.linspace(1, len(zs_original), num=len(zs_original), dtype=int)
         labeled[:, 1:] = zs_original
-        df = pd.DataFrame(
-            data=labeled, index=list(range(len(labeled))), columns=names
-        )
+        df = pd.DataFrame(data=labeled, index=list(range(len(labeled))), columns=names)
         if labels:
             df["Candidate"] = labels
 
@@ -387,9 +345,7 @@ class Plotter:
             fig["layout"]["autosize"] = True
             return {}
 
-        if zs.ndim == 1:
-            # reshape single solution to function as 2D array
-            zs = zs.reshape(1, -1)
+        zs = np.atleast_2d(zs)
 
         zs_original = self.scaler.inverse_transform(zs)
         zs_original = np.where(self.is_max, -zs_original, zs_original)
@@ -398,34 +354,28 @@ class Plotter:
         if names is None:
             names = ["Obj {}".format(i + 1) for i in range(zs.shape[1])]
         names = [
-            "{} ({})".format(name, val)
-            for (val, name) in zip(
-                ["⇧" if m is True else "⇩" for m in self.is_max], names
-            )
+            "{} ({})".format(name, val) for (val, name) in zip(["⇧" if m is True else "⇩" for m in self.is_max], names)
         ]
 
         if best is not None and best.ndim == 1:
             best = best.reshape(1, -1)
         if best is not None:
             best_original = self.scaler.inverse_transform(best)
-            best_original = np.where(
-                self.is_max, -best_original, best_original
-            )
+            best_original = np.where(self.is_max, -best_original, best_original)
             best = np.where(self.is_max, -best, best)
 
-        if previous is not None and previous.ndim == 1:
-            previous = previous.reshape(1, -1)
         if previous is not None:
+            previous = np.atleast_2d(previous)
             previous_original = self.scaler.inverse_transform(previous)
-            previous_original = np.where(
-                self.is_max, -previous_original, previous_original
-            )
+            previous_original = np.where(self.is_max, -previous_original, previous_original)
             previous = np.where(self.is_max, -previous, previous)
 
         if labels is None:
-            titles = ["Candidate {}".format(i + 1) for i in range(zs.shape[1])]
+            titles = ["Candidate {}".format(i + 1) for i in range(zs.shape[0])]
         else:
             titles = labels
+
+        print(titles)
 
         fig = go.Figure()
 
@@ -486,9 +436,7 @@ class Plotter:
                 )
             )
 
-        fig.update_layout(
-            polar=dict(radialaxis=dict(visible=False, range=[-1, 1]))
-        )
+        fig.update_layout(polar=dict(radialaxis=dict(visible=False, range=[-1, 1])))
 
         return fig
 
@@ -510,24 +458,17 @@ class Plotter:
         zs_original = self.scaler.inverse_transform(zs)
         zs_original = np.where(self.is_max, -zs_original, zs_original)
 
-        nadir_original = self.scaler.inverse_transform(
-            self.nadir.reshape(1, -1)
-        )[0]
+        nadir_original = self.scaler.inverse_transform(self.nadir.reshape(1, -1))[0]
         nadir_original = np.where(self.is_max, -nadir_original, nadir_original)
 
-        ideal_original = self.scaler.inverse_transform(
-            self.ideal.reshape(1, -1)
-        )[0]
+        ideal_original = self.scaler.inverse_transform(self.ideal.reshape(1, -1))[0]
         ideal_original = np.where(self.is_max, -ideal_original, ideal_original)
 
         if names is None:
             names = ["Obj {}".format(i + 1) for i in range(zs.shape[1])]
 
         names = [
-            "{} ({})".format(name, val)
-            for (val, name) in zip(
-                ["⇧" if m is True else "⇩" for m in self.is_max], names
-            )
+            "{} ({})".format(name, val) for (val, name) in zip(["⇧" if m is True else "⇩" for m in self.is_max], names)
         ]
 
         lows = []
@@ -548,9 +489,7 @@ class Plotter:
                 dimensions=list(
                     [
                         dict(range=[low, up], label=name, values=vals)
-                        for (low, up, name, vals) in zip(
-                            lows, ups, names, rows
-                        )
+                        for (low, up, name, vals) in zip(lows, ups, names, rows)
                     ]
                 ),
             )

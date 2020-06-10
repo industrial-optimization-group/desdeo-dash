@@ -1,33 +1,27 @@
-from typing import Union
-from collections import OrderedDict
-import uuid
 import base64
 import datetime
-import csv
 import json
-
-import numpy as np
-
-np.set_printoptions(precision=2)
+import uuid
+from collections import OrderedDict
+from typing import Union
 
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_table
-
-from plotly.subplots import make_subplots
+import numpy as np
 import plotly.graph_objects as go
+from dash.dependencies import ALL, Input, Output, State
+from plotly.subplots import make_subplots
 
+from desdeo_dash.server import app
 from desdeo_mcdm.interactive.NautilusNavigator import (
-    NautilusNavigator,
-    NautilusNavigatorRequest,
-)
-from dash.dependencies import Input, Output, State, ALL
+    NautilusNavigator, NautilusNavigatorRequest)
 
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-app.title = "NAUTILUS Navigator"
-app.config.suppress_callback_exceptions = True
+np.set_printoptions(precision=2)
+
+# external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+
+MANAGER_SIZE = 100
 
 
 class SessionManager:
@@ -36,9 +30,7 @@ class SessionManager:
     REQUEST_CACHE = OrderedDict()
 
     def __init__(self, *args, **kwargs):
-        raise TypeError(
-            "SessionManager should not be instantiated; it is purely a static class!"
-        )
+        raise TypeError("SessionManager should not be instantiated; it is purely a static class!")
 
     @staticmethod
     def config(method_cache_size: int):
@@ -75,9 +67,7 @@ class SessionManager:
             return None
 
     @staticmethod
-    def add_request(
-        request: NautilusNavigatorRequest, uid: str, index: int = -1
-    ) -> bool:
+    def add_request(request: NautilusNavigatorRequest, uid: str, index: int = -1) -> bool:
         # check key
         if not uid in SessionManager.METHOD_CACHE:
             return False
@@ -88,20 +78,19 @@ class SessionManager:
         if index == -1:
             SessionManager.REQUEST_CACHE[uid].append(request)
         else:
-            SessionManager.REQUEST_CACHE[uid] = SessionManager.REQUEST_CACHE[
-                uid
-            ][:index] + [request]
+            SessionManager.REQUEST_CACHE[uid] = SessionManager.REQUEST_CACHE[uid][:index] + [request]
 
         return True
 
     @staticmethod
-    def get_request(
-        uid: str, index: int = -1
-    ) -> Union[NautilusNavigatorRequest, None]:
+    def get_request(uid: str, index: int = -1) -> Union[NautilusNavigatorRequest, None]:
         if not uid in SessionManager.REQUEST_CACHE:
             return None
 
         return SessionManager.REQUEST_CACHE[uid][index]
+
+
+SessionManager.config(MANAGER_SIZE)
 
 
 def update_fig(request, fig, minimize):
@@ -120,12 +109,8 @@ def update_fig(request, fig, minimize):
         # fig["data"][3 * i]["y"] += (lower_bound[i] * minimize[i],)
         # fig["data"][3 * i + 1]["y"] += (upper_bound[i] * minimize[i],)
 
-        fig["data"][3 * i]["y"] += (
-            (lower_bound[i],) if minimize[i] == 1 else (upper_bound[i],)
-        )
-        fig["data"][3 * i + 1]["y"] += (
-            (upper_bound[i],) if minimize[i] == 1 else (lower_bound[i],)
-        )
+        fig["data"][3 * i]["y"] += (lower_bound[i],) if minimize[i] == 1 else (upper_bound[i],)
+        fig["data"][3 * i + 1]["y"] += (upper_bound[i],) if minimize[i] == 1 else (lower_bound[i],)
 
         # fig["data"][3 * i + 2]["y"] += (aspiration_levels[i],)
 
@@ -138,9 +123,7 @@ def make_fig(request, minimize, objective_names, multipliers):
 
     sub_plot_names = []
     for i, name in enumerate(objective_names):
-        sub_plot_names.append(
-            name + " (MIN)" if multipliers[i] == 1 else name + " (MAX)"
-        )
+        sub_plot_names.append(name + " (MIN)" if multipliers[i] == 1 else name + " (MAX)")
 
     fig = make_subplots(
         rows=n_objectives,
@@ -251,18 +234,16 @@ def parse_file_contents(contents, filename, date):
     return parsed_contents, content_type, mod_date
 
 
-def layout():
-    session_id = str(uuid.uuid4())
+def layout(session_id: str = None):
+    if not session_id:
+        session_id = str(uuid.uuid4())
     return html.Div(
         [
             html.Div(session_id, id="session-id", style={"display": "none"}),
-            dcc.Location(id="url", refresh=False),
+            dcc.Location(id="url", refresh=False, pathname="/navigator/index"),
             html.Div(id="page-content"),
         ]
     )
-
-
-app.layout = layout
 
 
 def index(uid):
@@ -273,12 +254,7 @@ def index(uid):
             html.Div(uid, id="session-id", style={"display": "none"}),
             html.Img(
                 src=app.get_asset_url("nautilus_navigator_logo.png"),
-                style={
-                    "width": "18%",
-                    "position": "absolute",
-                    "top": "0px",
-                    "right": "2.5%",
-                },
+                style={"width": "18%", "position": "absolute", "top": "0px", "right": "2.5%"},
             ),
             html.H2(
                 "NAUTILUS Navigator data-based interactive multiobjective optimization demonstration",
@@ -335,12 +311,8 @@ def index(uid):
                 html.Button(
                     dcc.Link(
                         "Start navigation",
-                        href="/navigate",
-                        style={
-                            "width": "100%",
-                            "height": "100%",
-                            "display": "block",
-                        },
+                        href="/navigator/navigate",
+                        style={"width": "100%", "height": "100%", "display": "block"},
                     ),
                     style={
                         "width": "80%",
@@ -381,10 +353,7 @@ def index(uid):
             ),
             dcc.Markdown("", id="uploaded-data-preview"),
             html.Br(),
-            html.A(
-                "Source code for this website",
-                href="https://github.com/gialmisi/desdeo-dash",
-            ),
+            html.A("Source code for this website", href="https://github.com/gialmisi/desdeo-dash"),
             html.Br(),
             html.A(
                 "Source code for the NAUTILUS Navigator implementation",
@@ -405,28 +374,19 @@ def navigation_layout(session_id):
     is_minimize = method._minimize
     objective_names = method._objective_names
 
-    request, _ = method.start()
+    request = method.start()
 
-    response = {
-        "reference_point": ideal,
-        "speed": 5,
-        "go_to_previous": False,
-        "stop": False,
-    }
+    response = {"reference_point": ideal, "speed": 5, "go_to_previous": False, "stop": False}
     request.response = response
 
     fig = make_fig(request, is_minimize, objective_names, is_minimize)
 
     SessionManager.add_request(request, session_id)
 
-    i = 1
     html_page = html.Div(
         [
             html.Div(
-                [
-                    html.Div(session_id, "session-id"),
-                    dcc.Graph(id="last-navigation-graph", figure=fig),
-                ],
+                [html.Div(session_id, "session-id"), dcc.Graph(id="last-navigation-graph", figure=fig)],
                 id="storage-div",
                 style={"display": "none"},
             ),
@@ -434,12 +394,7 @@ def navigation_layout(session_id):
             html.Div(
                 html.H3(
                     "Current aspiration levels: "
-                    + "; ".join(
-                        [
-                            f"(f{i+1}){objective_names[i]}: {ideal[i]}"
-                            for i in range(n_objectives)
-                        ]
-                    )
+                    + "; ".join([f"(f{i+1}){objective_names[i]}: {ideal[i]}" for i in range(n_objectives)])
                 ),
                 "preference-display-div",
             ),
@@ -450,27 +405,15 @@ def navigation_layout(session_id):
                             html.Div(
                                 [
                                     dcc.Slider(
-                                        id={
-                                            "type": "preference-slider",
-                                            "index": i,
-                                        },
-                                        min=ideal[i]
-                                        if is_minimize[i] == 1
-                                        else -nadir[i],
-                                        max=nadir[i]
-                                        if is_minimize[i] == 1
-                                        else -ideal[i],
-                                        value=ideal[i]
-                                        if is_minimize[i] == 1
-                                        else -ideal[i],
+                                        id={"type": "preference-slider", "index": i},
+                                        min=ideal[i] if is_minimize[i] == 1 else -nadir[i],
+                                        max=nadir[i] if is_minimize[i] == 1 else -ideal[i],
+                                        value=ideal[i] if is_minimize[i] == 1 else -ideal[i],
                                         step=abs(nadir[i] - ideal[i]) / 100,
                                         updatemode="drag",
                                         vertical=True,
                                     ),
-                                    html.Div(
-                                        f"({'MIN' if is_minimize[i] == 1 else 'MAX'})f{i+1}",
-                                        id=f"text-f{i}",
-                                    ),
+                                    html.Div(f"({'MIN' if is_minimize[i] == 1 else 'MAX'})f{i+1}", id=f"text-f{i}"),
                                 ],
                                 className="three columns",
                             )
@@ -485,22 +428,13 @@ def navigation_layout(session_id):
                         # config={"edits": {"shapePosition": True}},
                         className="ten columns",
                     ),
-                    dcc.Interval(
-                        id="stepper",
-                        interval=1 / response["speed"] * 1000,
-                        n_intervals=0,
-                        max_intervals=0,
-                    ),
+                    dcc.Interval(id="stepper", interval=1 / response["speed"] * 1000, n_intervals=0, max_intervals=0),
                     html.Button(
                         "Start",
                         id="start-button",
                         n_clicks=0,
                         className="row",
-                        style={
-                            "width": "40%",
-                            "margin-left": "30%",
-                            "margin-right": "30%",
-                        },
+                        style={"width": "40%", "margin-left": "30%", "margin-right": "30%"},
                     ),
                 ],
                 id="navigation-div",
@@ -530,16 +464,10 @@ def navigation_layout(session_id):
                         [
                             html.Div(
                                 [
-                                    html.Div(
-                                        "Go to previous step?",
-                                        style={"display": "inline-block"},
-                                    ),
+                                    html.Div("Go to previous step?", style={"display": "inline-block"}),
                                     dcc.RadioItems(
                                         id="previous-point-selection",
-                                        options=[
-                                            {"label": "Yes", "value": "yes"},
-                                            {"label": "No", "value": "no"},
-                                        ],
+                                        options=[{"label": "Yes", "value": "yes"}, {"label": "No", "value": "no"}],
                                         value="no",
                                         labelStyle={"display": "inline-block"},
                                         style={"display": "inline-block"},
@@ -562,11 +490,7 @@ def navigation_layout(session_id):
                                         style={"display": "none"},
                                         className="six columns",
                                     ),
-                                    html.Button(
-                                        "Ok",
-                                        id="previous-point-ok-button",
-                                        style={"display": "none"},
-                                    ),
+                                    html.Button("Ok", id="previous-point-ok-button", style={"display": "none"}),
                                 ],
                                 id="previous-input-div",
                                 className="six columns",
@@ -585,6 +509,7 @@ def navigation_layout(session_id):
     return html_page
 
 
+
 @app.callback(
     [Output("preference-display-div", "children")],
     [Input({"type": "preference-slider", "index": ALL}, "value")],
@@ -596,10 +521,7 @@ def update_preferences(values, uid):
     n_objectives = method._ideal.shape[0]
 
     res = "Current aspiration levels: " + "; ".join(
-        [
-            f"(f{i+1}){objective_names[i]}: {values[i]:.2e}"
-            for i in range(n_objectives)
-        ]
+        [f"(f{i+1}){objective_names[i]}: {values[i]:.2e}" for i in range(n_objectives)]
     )
 
     return [res]
@@ -642,15 +564,7 @@ def show_input(value):
     ],
 )
 def update_navigation_graph(
-    n_intervals,
-    values,
-    prev_input_clicks,
-    uid,
-    go_to_previous,
-    previous_point,
-    interval,
-    fig,
-    solution_reached,
+    n_intervals, values, prev_input_clicks, uid, go_to_previous, previous_point, interval, fig, solution_reached
 ):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -680,7 +594,7 @@ def update_navigation_graph(
 
         last_request.response = response
 
-        new_request, _ = method.iterate(last_request)
+        new_request = method.iterate(last_request)
 
         SessionManager.add_request(new_request, uid)
 
@@ -718,7 +632,7 @@ def update_navigation_graph(
 
         last_request.response = response
 
-        new_request, _ = method.iterate(last_request)
+        new_request = method.iterate(last_request)
 
         SessionManager.add_request(new_request, uid, step - 1)
 
@@ -762,10 +676,7 @@ def start_navigating(n, value, slider_children):
             {"display": "none"},
             [True] * len(slider_children),
             True,
-            [
-                {"disabled": True, "label": "Yes", "value": "yes"},
-                {"disabled": True, "label": "No", "value": "no"},
-            ],
+            [{"disabled": True, "label": "Yes", "value": "yes"}, {"disabled": True, "label": "No", "value": "no"}],
         )
     else:
         return (
@@ -775,29 +686,22 @@ def start_navigating(n, value, slider_children):
             {"display": "inline-block"},
             [False] * len(slider_children),
             False,
-            [
-                {"disabled": False, "label": "Yes", "value": "yes"},
-                {"disabled": False, "label": "No", "value": "no"},
-            ],
+            [{"disabled": False, "label": "Yes", "value": "yes"}, {"disabled": False, "label": "No", "value": "no"}],
         )
 
 
 @app.callback(
-    dash.dependencies.Output("speed-slider-output", "children"),
-    [dash.dependencies.Input("speed-slider", "value")],
+    dash.dependencies.Output("speed-slider-output", "children"), [dash.dependencies.Input("speed-slider", "value")]
 )
 def update_output(value):
     return f"Selected speed {value}"
 
 
-@app.callback(
-    Output("page-content", "children"),
-    [Input("url", "pathname"), Input("session-id", "children")],
-)
+@app.callback(Output("page-content", "children"), [Input("url", "pathname"), Input("session-id", "children")])
 def display_page(pathname, uid):
-    if pathname == "/navigate":
+    if pathname == "/navigator/navigate":
         return navigation_layout(uid)
-    elif pathname == "/":
+    elif pathname == "/navigator/index":
         return index(uid)
     else:
         raise dash.exceptions.PreventUpdate
@@ -817,9 +721,7 @@ def update_data_preview(content, file_name, mod_date):
         raise dash.exceptions.PreventUpdate
 
     try:
-        _contents, _file_name, _mod_date = parse_file_contents(
-            content, file_name, mod_date
-        )
+        _contents, _file_name, _mod_date = parse_file_contents(content, file_name, mod_date)
         nl = "\n\n"
         n = "\n"
         res = (
@@ -835,11 +737,7 @@ def update_data_preview(content, file_name, mod_date):
         )
         return res, {"display": "inline"}, json.dumps(_contents)
     except Exception as e:
-        return (
-            f"An exception occurred when reading the file: {str(e)}",
-            {"display": "none"},
-            "",
-        )
+        return (f"An exception occurred when reading the file: {str(e)}", {"display": "none"}, "")
 
 
 @app.callback(
@@ -864,9 +762,8 @@ def upload_and_make_method(n, uid, json_data):
         ideal = np.min(objective_values, axis=0)
         nadir = np.max(objective_values, axis=0)
 
-        method = NautilusNavigator(
-            objective_values, ideal, nadir, objective_names, multiplier
-        )
+        # choose correct method here!
+        method = NautilusNavigator(objective_values, ideal, nadir, objective_names, multiplier)
 
         SessionManager.add_method(method, uid)
 
@@ -877,8 +774,10 @@ def upload_and_make_method(n, uid, json_data):
 
 
 def main():
-    SessionManager.config(10)
     # False to prevent doble loading
+    app.title = "Navigator NAUTILUS"
+    app.config.suppress_callback_exceptions = True
+    app.layout = layout()
     app.run_server(debug=True, use_reloader=False)
 
 
