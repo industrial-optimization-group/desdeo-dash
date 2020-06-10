@@ -14,8 +14,7 @@ from dash.dependencies import ALL, Input, Output, State
 from plotly.subplots import make_subplots
 
 from desdeo_dash.server import app
-from desdeo_mcdm.interactive.NautilusNavigator import (
-    NautilusNavigator, NautilusNavigatorRequest)
+from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
 
 np.set_printoptions(precision=2)
 
@@ -509,7 +508,6 @@ def navigation_layout(session_id):
     return html_page
 
 
-
 @app.callback(
     [Output("preference-display-div", "children")],
     [Input({"type": "preference-slider", "index": ALL}, "value")],
@@ -641,16 +639,19 @@ def update_navigation_graph(
             fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:step]
             fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:step]
             fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:step]
-            fig["data"][3 * i + 2]["y"] = 100 * [values[i]]
+            # fig["data"][3 * i + 2]["y"] = 100 * [values[i]]
+            fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
+                : method._step_number - 1
+            ] + method._steps_remaining * [values[i]]
 
         return fig, fig, "no", "Ready to navigate"
 
     else:
         for (i, value) in enumerate(values):
-            # fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
-            #     : method._step_number - 1
-            # ] + method._steps_remaining * [value]
-            fig["data"][3 * i + 2]["y"] = 100 * [value]
+            fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
+                : method._step_number - 1
+            ] + method._steps_remaining * [value]
+            # fig["data"][3 * i + 2]["y"] = 100 * [value]
         return fig, fig, go_to_previous, "Ready to navigate"
 
 
