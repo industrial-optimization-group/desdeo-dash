@@ -297,7 +297,10 @@ def optimization_layout(uid: str):
                         className="row",
                     ),
                     html.H4(
-                        "To start, click 'ITERATE'. Spider plots will be generated after the first iteration.",
+                        (
+                            "To start, click 'ITERATE'. Spider plots will be generated after the first iteration. "
+                            " The red path in the value paths shows the nadir point."
+                        ),
                         className="six columns",
                         id="enautilus-info",
                     ),
@@ -328,7 +331,7 @@ def optimization_layout(uid: str):
                     # Second column
                     html.Div(
                         [
-                            html.H5("Value paths (double click on first axis to show all paths)"),
+                            html.H5("Value paths. Current selection in red."),
                             dcc.Graph(
                                 id="enautilus-value-paths",
                                 figure=plotter.value_path_plot_candidates(
@@ -586,6 +589,7 @@ def highlight_table_row(candidate_index, uid):
         zs, names=method._objective_names, best=intermediate_ranges, previous=previous_best, selection=candidate_index
     )
 
+    print(zs)
     value_paths = plotter.value_path_plot_candidates(zs, method._objective_names, selection=candidate_index)
 
     return style, style, spider_plots, value_paths

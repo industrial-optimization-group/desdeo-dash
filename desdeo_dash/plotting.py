@@ -83,9 +83,7 @@ class Plotter:
             fig["layout"]["autosize"] = True
             return {}
 
-        if zs.ndim == 1:
-            # reshape single solution to function as 2D array
-            zs = zs.reshape(1, -1)
+        zs = np.atleast_2d(zs)
 
         zs_original = self.scaler.inverse_transform(zs)
         zs_original = np.where(self.is_max, -zs_original, zs_original)
@@ -453,8 +451,7 @@ class Plotter:
             zs (np.ndarray): A 2D array with each candidate on its' rows.
             names (List[str], optional): A list of the objective names.
         """
-        if zs.ndim == 1:
-            zs = zs.reshape(1, -1)
+        zs = np.atleast_2d(zs)
         zs_original = self.scaler.inverse_transform(zs)
         zs_original = np.where(self.is_max, -zs_original, zs_original)
 
@@ -483,9 +480,19 @@ class Plotter:
                 lows.append(ideal_original[i])
 
         rows = [list(row) for row in zs_original.T]
+
+        colors = np.zeros(zs_original.shape[0])
+
+        if selection is not None:
+            colors[selection] = 1
+        else:
+            colors[0] = 1
+
+        print(colors)
+
         fig = go.Figure(
             data=go.Parcoords(
-                line=dict(color=list(range(len(rows))), showscale=True),
+                line=dict(color=colors, showscale=False, colorscale=[[0, "grey"], [1, "red"]]),
                 dimensions=list(
                     [
                         dict(range=[low, up], label=name, values=vals)
