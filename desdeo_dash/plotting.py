@@ -341,7 +341,21 @@ class Plotter:
             # make empty plot (for placeholding purposes)
             fig = make_subplots(specs=[[{"type": "polar"}]])
             fig["layout"]["autosize"] = True
-            return {}
+            return {
+                "layout": {
+                    "xaxis": {"visible": False},
+                    "yaxis": {"visible": False},
+                    "annotations": [
+                        {
+                            "text": "Nothing to show yet.",
+                            "xref": "paper",
+                            "yref": "paper",
+                            "showarrow": False,
+                            "font": {"size": 28},
+                        }
+                    ],
+                }
+            }
 
         zs = np.atleast_2d(zs)
 
@@ -372,8 +386,6 @@ class Plotter:
             titles = ["Candidate {}".format(i + 1) for i in range(zs.shape[0])]
         else:
             titles = labels
-
-        print(titles)
 
         fig = go.Figure()
 
@@ -487,8 +499,6 @@ class Plotter:
             colors[selection] = 1
         else:
             colors[0] = 1
-
-        print(colors)
 
         fig = go.Figure(
             data=go.Parcoords(

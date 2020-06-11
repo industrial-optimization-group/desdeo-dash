@@ -11,7 +11,10 @@ import dash_html_components as html
 import dash_table
 import numpy as np
 from dash.dependencies import Input, Output, State
-from desdeo_mcdm.interactive.ENautilus import ENautilus, ENautilusInitialRequest, ENautilusRequest, ENautilusStopRequest
+from desdeo_mcdm.interactive.ENautilus import (ENautilus,
+                                               ENautilusInitialRequest,
+                                               ENautilusRequest,
+                                               ENautilusStopRequest)
 from sklearn.preprocessing import MinMaxScaler
 
 from desdeo_dash import Plotter
@@ -589,7 +592,6 @@ def highlight_table_row(candidate_index, uid):
         zs, names=method._objective_names, best=intermediate_ranges, previous=previous_best, selection=candidate_index
     )
 
-    print(zs)
     value_paths = plotter.value_path_plot_candidates(zs, method._objective_names, selection=candidate_index)
 
     return style, style, spider_plots, value_paths
