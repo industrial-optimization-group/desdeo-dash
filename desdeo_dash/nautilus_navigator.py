@@ -387,11 +387,31 @@ def navigation_layout(session_id):
             ),
             html.H1(f"Navigation", id="solution-reached"),
             html.Div(
-                html.H3(
+                html.P(
                     "Current aspiration levels: "
-                    + "; ".join([f"(f{i+1}){objective_names[i]}: {ideal[i]}" for i in range(n_objectives)])
+                    + "; ".join(
+                        [f"(f{i+1}){objective_names[i]}: {ideal[i]*is_minimize[i]}" for i in range(n_objectives)]
+                    )
                 ),
                 "preference-display-div",
+            ),
+            html.Div(
+                html.P(
+                    "Current best reachable value: "
+                    + "; ".join(
+                        [f"(f{i+1}){objective_names[i]}: {ideal[i]*is_minimize[i]}" for i in range(n_objectives)]
+                    )
+                ),
+                "best-reachable-display-div",
+            ),
+            html.Div(
+                html.P(
+                    "Current worst reachable worst: "
+                    + "; ".join(
+                        [f"(f{i+1}){objective_names[i]}: {nadir[i]*is_minimize[i]}" for i in range(n_objectives)]
+                    )
+                ),
+                "worst-reachable-display-div",
             ),
             html.Div(
                 [
@@ -404,7 +424,7 @@ def navigation_layout(session_id):
                                         min=ideal[i] if is_minimize[i] == 1 else -nadir[i],
                                         max=nadir[i] if is_minimize[i] == 1 else -ideal[i],
                                         value=ideal[i] if is_minimize[i] == 1 else -ideal[i],
-                                        step=abs(nadir[i] - ideal[i]) / 100,
+                                        step=abs(nadir[i] - ideal[i]) / 1000,
                                         updatemode="drag",
                                         vertical=True,
                                     ),
@@ -507,20 +527,49 @@ def navigation_layout(session_id):
 
 
 @app.callback(
-    [Output("preference-display-div", "children")],
-    [Input({"type": "preference-slider", "index": ALL}, "value")],
+    [
+        Output("preference-display-div", "children"),
+        Output("best-reachable-display-div", "children"),
+        Output("worst-reachable-display-div", "children"),
+    ],
+    [
+        Input({"type": "preference-slider", "index": ALL}, "value"),
+        Input("stepper", "n_intervals"),
+        Input("previous-point-ok-button", "n_clicks"),
+    ],
     [State("session-id", "children")],
 )
-def update_preferences(values, uid):
+def update_preferences(values, _, prev_input_clicks, uid):
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    if trigger_id == "previous-point-ok-button":
+        if prev_input_clicks == 0:
+            raise dash.exceptions.PreventUpdate
+
     method = SessionManager.get_method(uid)
+    minimize = method._minimize
     objective_names = method._objective_names
     n_objectives = method._ideal.shape[0]
+    request = SessionManager.get_request(uid)
+    content = request.content
 
-    res = "Current aspiration levels: " + "; ".join(
+    lower_bounds = content["reachable_lb"] * minimize
+    upper_bounds = content["reachable_ub"] * minimize
+
+    res_asp = "Current aspiration levels: " + "; ".join(
         [f"(f{i+1}){objective_names[i]}: {values[i]:.2e}" for i in range(n_objectives)]
     )
 
-    return [res]
+    res_best = "Current best reachable values: " + "; ".join(
+        [f"(f{i+1}){objective_names[i]}: {lower_bounds[i]:.2e}" for i in range(n_objectives)]
+    )
+
+    res_worst = "Current worst reachable values: " + "; ".join(
+        [f"(f{i+1}){objective_names[i]}: {upper_bounds[i]:.2e}" for i in range(n_objectives)]
+    )
+
+    return [res_asp, res_best, res_worst]
 
 
 @app.callback(
