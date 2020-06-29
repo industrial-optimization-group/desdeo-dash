@@ -11,12 +11,13 @@ import dash_html_components as html
 import numpy as np
 import plotly.graph_objects as go
 from dash.dependencies import ALL, Input, Output, State
-from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
+from desdeo_mcdm.interactive.NautilusNavigator import (
+    NautilusNavigator, NautilusNavigatorRequest)
 from plotly.subplots import make_subplots
 
 from desdeo_dash.server import app
 
-np.set_printoptions(precision=2)
+# np.set_printoptions(precision=2)
 
 # external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
@@ -413,6 +414,40 @@ def navigation_layout(session_id):
                 ),
                 "worst-reachable-display-div",
             ),
+            html.H3("Use the sliders or input preference manually", className="row"),
+            html.Div(
+                [
+                    item
+                    for sublist in [
+                        [
+                            html.P(f" {objective_names[i]}:", style={"display": "inline"}),
+                            dcc.Input(
+                                id={"type": "preference-manual-input", "index": i},
+                                type="number",
+                                min=ideal[i] if is_minimize[i] == 1 else -nadir[i],
+                                max=nadir[i] if is_minimize[i] == 1 else -ideal[i],
+                                placeholder=f"{objective_names[i]} aspiration",
+                            ),
+                        ]
+                        for i in range(n_objectives)
+                    ]
+                    for item in sublist
+                ],
+                id="preference-manual-input-div",
+                className="row",
+            ),
+            html.Div(
+                [
+                    html.Button(
+                        "Ok",
+                        id="manual-preference-ok-button",
+                        n_clicks=0,
+                        # style={"width": "40%", "margin-left": "30%", "margin-right": "30%"},
+                    )
+                ],
+                id="manual-preference-ok-button",
+                className="row",
+            ),
             html.Div(
                 [
                     html.Div(
@@ -531,6 +566,7 @@ def navigation_layout(session_id):
         Output("preference-display-div", "children"),
         Output("best-reachable-display-div", "children"),
         Output("worst-reachable-display-div", "children"),
+        Output({"type": "preference-manual-input", "index": ALL}, "value"),
     ],
     [
         Input({"type": "preference-slider", "index": ALL}, "value"),
@@ -558,18 +594,30 @@ def update_preferences(values, _, prev_input_clicks, uid):
     upper_bounds = content["reachable_ub"] * minimize
 
     res_asp = "Current aspiration levels: " + "; ".join(
-        [f"(f{i+1}){objective_names[i]}: {values[i]:.2e}" for i in range(n_objectives)]
+        [f"(f{i+1}){objective_names[i]}: {values[i]}" for i in range(n_objectives)]
     )
 
     res_best = "Current best reachable values: " + "; ".join(
-        [f"(f{i+1}){objective_names[i]}: {lower_bounds[i]:.2e}" for i in range(n_objectives)]
+        [f"(f{i+1}){objective_names[i]}: {lower_bounds[i]}" for i in range(n_objectives)]
     )
 
     res_worst = "Current worst reachable values: " + "; ".join(
-        [f"(f{i+1}){objective_names[i]}: {upper_bounds[i]:.2e}" for i in range(n_objectives)]
+        [f"(f{i+1}){objective_names[i]}: {upper_bounds[i]}" for i in range(n_objectives)]
     )
 
-    return [res_asp, res_best, res_worst]
+    return res_asp, res_best, res_worst, values
+
+
+@app.callback(
+    [Output({"type": "preference-slider", "index": ALL}, "value")],
+    [Input("manual-preference-ok-button", "n_clicks")],
+    [State({"type": "preference-manual-input", "index": ALL}, "value")],
+)
+def manual_preference_input(n_clicks, values):
+    if n_clicks == 0:
+        raise dash.exceptions.PreventUpdate
+
+    return [values]
 
 
 @app.callback(
