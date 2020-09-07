@@ -447,7 +447,6 @@ class Plotter:
             )
 
         fig.update_layout(polar=dict(radialaxis=dict(visible=False, range=[-1, 1])))
-        print(fig)
 
         return fig
 
