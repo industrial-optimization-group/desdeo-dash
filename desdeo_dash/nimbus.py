@@ -3,7 +3,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 import numpy as np
-from dash.dependencies import Input, Output, State
+from dash.dependencies import ALL, Input, Output, State
 from desdeo_mcdm.interactive.ENautilus import ENautilus, ENautilusInitialRequest, ENautilusRequest, ENautilusStopRequest
 from sklearn.preprocessing import MinMaxScaler
 
@@ -45,24 +45,35 @@ def layout():
                     html.Div(
                         [
                             html.P(
-                                f"{method._problem.objective_names[i]}: {initial_request.content['objective_values'][i]}"
+                                f"{method._problem.objective_names[i]} with value {initial_request.content['objective_values'][i]} may..."
                             ),
                             dcc.Dropdown(
-                                options=[{"label": "Improve", "value": "<"}, {"label": "Improve until", "value": "<="}],
-                                value="<",
+                                options=[
+                                    {"label": "Improve", "value": "<"},
+                                    {"label": "Improve until", "value": "<="},
+                                    {"label": "Stay as it is", "value": "="},
+                                    {"label": "Change freely", "value": "0"},
+                                    {"label": "Worsen until", "value": ">="},
+                                ],
+                                value="0",
                                 id={"type": "dropdown-class", "index": i},
                             ),
                             dcc.Input(
-                                type="number",
+                                type="hidden",
                                 min=ideal[i] if is_minimize[i] == 1 else -nadir[i],
                                 max=nadir[i] if is_minimize[i] == 1 else -ideal[i],
-                                value=ideal[i] if is_minimize[i] == 1 else -ideal[i],
+                                # value=ideal[i] if is_minimize[i] == 1 else -ideal[i],
+                                placeholder=(
+                                    f"{ideal[i] if is_minimize[i] == 1 else -nadir[i]} "
+                                    f"to {nadir[i] if is_minimize[i] == 1 else -ideal[i]}"
+                                ),
                                 id={"type": "bound-class", "index": i},
                             ),
                         ]
                     )
                     for i in range(n_objectives)
-                ],
+                ]
+                + [html.P("\n"), html.Button("Classifications OK", id="classification-ok-btn", n_clicks=0)],
                 id="dropdown-classses",
             ),
             html.H3("Initial solution"),
@@ -71,6 +82,16 @@ def layout():
         ],
         id="nimbus-contents",
     )
+
+
+@app.callback(
+    [Output({"type": "bound-class", "index": ALL}, "type")], [Input({"type": "dropdown-class", "index": ALL}, "value")]
+)
+def activate_bound_inputs(dropdown_values):
+    # handle the dropdown selections, activate input if dropdown selection mandates one...
+    typeof = ["hidden" if v not in ["<=", ">="] else "number" for v in dropdown_values]
+
+    return [typeof]
 
 
 def main():
