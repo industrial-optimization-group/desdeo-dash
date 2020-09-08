@@ -1,7 +1,6 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_table
 import numpy as np
 from dash.dependencies import ALL, Input, Output, State
 from desdeo_mcdm.interactive.ENautilus import ENautilus, ENautilusInitialRequest, ENautilusRequest, ENautilusStopRequest
@@ -15,6 +14,7 @@ global plotter
 global intermediate_solutions
 global current_best_solutions
 global last_request
+global intermediate_choose_from
 
 
 def layout():
@@ -28,7 +28,7 @@ def layout():
 
     objective_values_str = "; ".join(
         [
-            f"{name}: {value}"
+            f"{name}: {value:.3f}"
             for name, value in zip(method._problem.objective_names, initial_request.content["objective_values"])
         ]
     )
@@ -52,7 +52,8 @@ def layout():
                             html.Div(
                                 [
                                     html.P(
-                                        f"{method._problem.objective_names[i]} with value {initial_request.content['objective_values'][i]} may..."
+                                        f"{method._problem.objective_names[i]} is to be "
+                                        f"{'minimized' if is_minimize[i] == 1 else 'maximized'}, and may:"
                                     ),
                                     dcc.Dropdown(
                                         options=[
@@ -90,8 +91,8 @@ def layout():
                         ],
                         id="dropdown-classses",
                     ),
-                    html.H3("Initial solution"),
-                    html.P(objective_values_str),
+                    html.H3("Current solution"),
+                    html.P(objective_values_str, id="current-solution"),
                 ],
                 id="nimbus-classification",
             ),
@@ -122,7 +123,8 @@ def layout():
                                     {"label": "option 2", "value": 2},
                                     {"label": "option 3", "value": 3},
                                     {"label": "option 4", "value": 4},
-                                ]
+                                ],
+                                id="inter-first-alternatives",
                             ),
                         ]
                     ),
@@ -135,17 +137,58 @@ def layout():
                                     {"label": "option 2", "value": 2},
                                     {"label": "option 3", "value": 3},
                                     {"label": "option 4", "value": 4},
-                                ]
+                                ],
+                                id="inter-second-alternatives",
                             ),
                         ]
                     ),
-                    html.Button("Calculate intermediate solutions", id="calculate-intermediate-btn"),
-                    html.Button("Continue", id="continue-btn"),
+                    dcc.Input(
+                        type="number",
+                        min=1,
+                        step=1,
+                        placeholder="Number of intermediate solutions",
+                        id="input-intermediate",
+                    ),
+                    html.Button("Calculate intermediate solutions", id="calculate-intermediate-btn", n_clicks=0),
+                    html.Button("Continue", id="continue-btn", n_clicks=0),
+                    html.P(
+                        "The two chosen alternatives cannot be the same!",
+                        style={"display": "none"},
+                        id="error-same-choice",
+                    ),
                 ],
                 id="nimbus-intermediate",
                 style={"display": "none"},
             ),
+            html.Div("", style={"display": "none"}, id="intermediate-trigger-div"),
+            html.Div(
+                [
+                    html.H3(
+                        (
+                            "Select a preferred solution among the displayed solutions, and either continue to "
+                            "classification or end and display final the final solution chosen."
+                        )
+                    ),
+                    dcc.RadioItems(
+                        options=[
+                            {"label": "option 1", "value": 1},
+                            {"label": "option 2", "value": 2},
+                            {"label": "option 3", "value": 3},
+                            {"label": "option 4", "value": 4},
+                        ],
+                        id="select-preferred",
+                    ),
+                    html.Button("Classify", id="select-preferred-btn", n_clicks=0),
+                    html.Button("End and display", id="end-btn", n_clicks=0),
+                ],
+                id="nimbus-preferred",
+            ),
+            html.Div("", style={"display": "none"}, id="preferred-trigger-div"),
             html.Div([dcc.Graph(figure=figure, id="nimbus-figure")], style={"display": "block"}, id="nimbus-display"),
+            html.Div("", style={"display": "none"}, id="restart-trigger-div"),
+            html.H3("", id="final-solution"),
+            html.P("", id="decision-variables"),
+            html.P("", id="objective-values"),
         ],
         id="nimbus-page",
     )
@@ -162,7 +205,7 @@ def activate_bound_inputs(dropdown_values):
 
 
 @app.callback(
-    [Output("classification-trigger-div", "children"), Output("alternative-checklist", "options")],
+    Output("classification-trigger-div", "children"),
     [Input("classification-ok-btn", "n_clicks")],
     [
         State("num-des-sol", "value"),
@@ -199,10 +242,24 @@ def classification_ok(n_clicks, num_of_solutions, classifications, bounds):
     req.response = response
     last_request = method.iterate(req)[0]
 
-    intermediate_solutions = np.array(last_request.content["objectives"])
-    options = [{"label": f"Alternative {i+1}", "value": i} for (i, _) in enumerate(intermediate_solutions)]
+    intermediate_solutions = np.atleast_2d(last_request.content["objectives"])
+    # options = [{"label": f"Alternative {i+1}", "value": i} for (i, _) in enumerate(intermediate_solutions)]
 
-    return ["Triggered!", options]
+    return "Triggered!"
+
+
+@app.callback(
+    [Output("alternative-checklist", "options"), Output("alternative-checklist", "value")],
+    [Input("classification-trigger-div", "children"), Input("intermediate-trigger-div", "children")],
+)
+def update_saveable(_1, _2):
+    global last_request
+
+    solutions = np.atleast_2d(last_request.content["objectives"])
+
+    options = [{"label": f"Alternative {i+1}", "value": i} for (i, _) in enumerate(solutions)]
+
+    return options, []
 
 
 @app.callback(
@@ -217,6 +274,10 @@ def save_ok(n_clicks, values):
     global last_request
     global method
 
+    print(last_request.content)
+
+    print(values)
+
     res = {"indices": values}
     last_request.response = res
 
@@ -226,46 +287,212 @@ def save_ok(n_clicks, values):
 
 
 @app.callback(
+    [Output("inter-first-alternatives", "options"), Output("inter-second-alternatives", "options")],
+    [Input("newsolutions-trigger-div", "children"), Input("intermediate-trigger-div", "children")],
+)
+def update_intermediate_alternatives(_1, _2):
+    global method
+    global last_request
+
+    solutions = np.atleast_2d(last_request.content["objectives"])
+
+    options = [{"label": f"Alternative {i+1}", "value": i} for (i, _) in enumerate(solutions)]
+
+    return [options, options]
+
+
+@app.callback(
+    [Output("intermediate-trigger-div", "children"), Output("error-same-choice", "style")],
+    [Input("calculate-intermediate-btn", "n_clicks")],
+    [
+        State("inter-first-alternatives", "value"),
+        State("inter-second-alternatives", "value"),
+        State("input-intermediate", "value"),
+    ],
+)
+def calculate_intermediate_solutions(n_clicks, first_choice, second_choice, n_solutions):
+    global method
+    global last_request
+
+    if n_clicks == 0:
+        raise dash.exceptions.PreventUpdate
+
+    if first_choice == second_choice:
+        return ["", {"display": "block"}]
+
+    resp = {}
+    resp["indices"] = [first_choice, second_choice]
+    resp["number_of_desired_solutions"] = n_solutions
+
+    last_request.response = resp
+
+    new_req = method.iterate(last_request)[0]
+    last_request = new_req
+
+    return ["Triggered!", {"display": "none"}]
+
+
+@app.callback(
+    [Output("preferred-trigger-div", "children"), Output("select-preferred", "options")],
+    [Input("continue-btn", "n_clicks")],
+)
+def select_preferred(n_clicks):
+    global method
+    global last_request
+
+    if n_clicks == 0:
+        raise dash.exceptions.PreventUpdate
+
+    resp = {}
+    resp["indices"] = []
+    resp["number_of_desired_solutions"] = 0
+
+    last_request.response = resp
+
+    new_req = method.iterate(last_request)[0]
+    last_request = new_req
+
+    solutions = new_req.content["objectives"]
+
+    return "Triggered!", [{"label": f"Alternative {i+1}", "value": i} for (i, _) in enumerate(solutions)]
+
+
+@app.callback(
+    [Output("restart-trigger-div", "children"), Output("current-solution", "children")],
+    [Input("select-preferred-btn", "n_clicks")],
+    [State("select-preferred", "value")],
+)
+def confirm_preferred(n_clicks, value):
+    global method
+    global last_request
+
+    if n_clicks == 0:
+        raise dash.exceptions.PreventUpdate
+
+    resp = {}
+    resp["index"] = value
+    resp["continue"] = True
+
+    last_request.response = resp
+
+    new_req = method.iterate(last_request)[0]
+
+    last_request = new_req
+
+    objective_values_str = "; ".join(
+        [
+            f"{name}: {value:.3f}"
+            for name, value in zip(method._problem.objective_names, last_request.content["objective_values"])
+        ]
+    )
+
+    return ["Triggered!", objective_values_str]
+
+
+@app.callback(
+    [
+        Output("final-solution", "children"),
+        Output("decision-variables", "children"),
+        Output("objective-values", "children"),
+    ],
+    [Input("end-btn", "n_clicks")],
+    [State("select-preferred", "value")],
+)
+def end(n_clicks, value):
+    global method
+    global last_request
+
+    if n_clicks == 0:
+        raise dash.exceptions.PreventUpdate
+
+    resp = {}
+    resp["index"] = value
+    resp["continue"] = False
+
+    last_request.response = resp
+
+    new_req = method.iterate(last_request)[0]
+
+    title = "Final solution"
+
+    decision_vars = f"Decision variable values " f"{method._problem.variable_names}: {new_req.content['solution']}"
+
+    objective_vals = f"Objective values {method._problem.objective_names}: {new_req.content['objective']}"
+
+    return [title, decision_vars, objective_vals]
+
+
+@app.callback(
     [
         Output("nimbus-classification", "style"),
         Output("nimbus-newsolutions", "style"),
         Output("nimbus-intermediate", "style"),
+        Output("nimbus-preferred", "style"),
     ],
     [
         Input("classification-trigger-div", "children"),
         Input("newsolutions-trigger-div", "children"),
+        Input("intermediate-trigger-div", "children"),
+        Input("preferred-trigger-div", "children"),
+        Input("restart-trigger-div", "children"),
         Input("classification-ok-btn", "n_clicks"),
     ],
 )
-def manage_shown_div(_1, _2, n_clicks):
+def manage_shown_div(_1, _2, _3, _4, _5, n_clicks):
     context = dash.callback_context
 
     if len(context.triggered) > 1:
         if "classification-trigger-div.children" in context.triggered[1]["prop_id"]:
             # show save view, hide others
-            return [{"display": "none"}, {"display": "block"}, {"display": "none"}]
+            return [{"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"}]
 
     if "newsolutions-trigger-div.children" in context.triggered[0]["prop_id"]:
         # show ??? view, hide others
-        return [{"display": "none"}, {"display": "none"}, {"display": "block"}]
+        return [{"display": "none"}, {"display": "none"}, {"display": "block"}, {"display": "none"}]
+
+    if "intermediate-trigger-div.children" in context.triggered[0]["prop_id"]:
+        # show ??? view, hide others
+        return [{"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"}]
+
+    if "preferred-trigger-div.children" in context.triggered[0]["prop_id"]:
+        # show ??? view, hide others
+        return [{"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "block"}]
+
+    if "restart-trigger-div.children" in context.triggered[0]["prop_id"]:
+        # show ??? view, hide others
+        return [{"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"}]
 
     if n_clicks > 0:
         # only fall to down if page load
         raise dash.exceptions.PreventUpdate
 
     # show classification view, hide others
-    return [{"display": "block"}, {"display": "none"}, {"display": "none"}]
+    return [{"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"}]
 
 
-@app.callback(Output("nimbus-figure", "figure"), [Input("classification-trigger-div", "children")])
-def plot_new_solutions(_):
+@app.callback(
+    Output("nimbus-figure", "figure"),
+    [
+        Input("classification-trigger-div", "children"),
+        Input("newsolutions-trigger-div", "children"),
+        Input("intermediate-trigger-div", "children"),
+        Input("preferred-trigger-div", "children"),
+        Input("restart-trigger-div", "children"),
+    ],
+)
+def plot_new_solutions(_1, _2, _3, _4, _5):
     global plotter
-    global intermediate_solutions
+    global last_request
+
+    if "objectives" in last_request.content:
+        solutions = np.atleast_2d(last_request.content["objectives"])
+    else:
+        solutions = np.atleast_2d(last_request.content["objective_values"])
 
     figure = plotter.spider_plot_candidates(
-        plotter.scaler.transform(np.atleast_2d(intermediate_solutions)),
+        plotter.scaler.transform(solutions),
         selection=0,
-        labels=[f"Alternative {i+1}" for (i, _) in enumerate(intermediate_solutions)],
+        labels=[f"Alternative {i+1}" for (i, _) in enumerate(solutions)],
     )
 
     return figure
