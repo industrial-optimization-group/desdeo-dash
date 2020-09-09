@@ -571,12 +571,11 @@ if __name__ == "__main__":
     c1 = ScalarConstraint("c1", len(varsl), len(objl), evaluator=c_1)
 
     problem = MOProblem(variables=varsl, objectives=objl, constraints=[c1])
-    # problem = MOProblem(variables=varsl, objectives=[f1, f2, f3, f4, f5], constraints=[c1])
 
     max_bool = list(map(lambda x: True if x < 0 else False, problem._max_multiplier))
     max_multiplier = problem._max_multiplier
 
-    # pre computed ideal and nadir, defined AS IF minimizing all objectives!
+    # define ideal and nadir
     ideal = max_multiplier * np.array([-15, 15, 15])
     nadir = max_multiplier * np.array([15, -15, -15])
 
@@ -587,7 +586,6 @@ if __name__ == "__main__":
     global method
     method = NIMBUS(problem, scalar_method="scipy_de")
 
-    # because we did not supply the ideal and nadir, the NIMBUS method will approximate these value using a payoff table
     ideal = method._ideal
     nadir = method._nadir
 
