@@ -26,20 +26,27 @@ def layout():
 
     initial_request = method.request_classification()[0]
 
+    is_minimize = method._problem._max_multiplier
+
     objective_values_str = "; ".join(
         [
             f"{name}: {value:.3f}"
-            for name, value in zip(method._problem.objective_names, initial_request.content["objective_values"])
+            for name, value in zip(
+                method._problem.objective_names, initial_request.content["objective_values"] * is_minimize
+            )
         ]
     )
 
     ideal = method._ideal
     nadir = method._nadir
-    is_minimize = method._problem._max_multiplier
 
     _initial_and_bounds = np.stack((initial_request.content["objective_values"], ideal, nadir))
+
     figure = plotter.spider_plot_candidates(
-        plotter.scaler.transform(_initial_and_bounds), selection=0, labels=["Current best", "Ideal", "Nadir"]
+        plotter.scaler.transform(_initial_and_bounds),
+        selection=0,
+        labels=["Current best", "Ideal", "Nadir"],
+        names=method._problem.objective_names,
     )
 
     return html.Div(
@@ -86,8 +93,12 @@ def layout():
                             dcc.Input(
                                 type="number", min=1, max=4, value=1, placeholder="Between 1 and 4", id="num-des-sol"
                             ),
-                            html.P(),
                             html.Button("Classifications OK", id="classification-ok-btn", n_clicks=0),
+                            html.P(
+                                "Check the classifications! At least one objective should be set to improve and one allowed to change freely or detoriate!",
+                                id="bad-class-warn",
+                                style={"display": "none"},
+                            ),
                         ],
                         id="dropdown-classses",
                     ),
@@ -204,6 +215,17 @@ def activate_bound_inputs(dropdown_values):
     return [typeof]
 
 
+@app.callback(Output("bad-class-warn", "style"), [Input({"type": "dropdown-class", "index": ALL}, "value")])
+def check_classification(classifications):
+    able_to_improve = any([True if c in ["<", "<="] else False for c in classifications])
+    able_to_worsen = any([True if c in [">=", "0"] else False for c in classifications])
+
+    if able_to_improve and able_to_worsen:
+        return {"display": "none"}
+
+    return {"display": "block"}
+
+
 @app.callback(
     Output("classification-trigger-div", "children"),
     [Input("classification-ok-btn", "n_clicks")],
@@ -217,12 +239,10 @@ def classification_ok(n_clicks, num_of_solutions, classifications, bounds):
     if n_clicks == 0 or num_of_solutions is None:
         raise dash.exceptions.PreventUpdate
 
-    if all([True if c not in ["<=", ">=", "0"] else False for c in classifications]):
-        # At least one of the classifications should be to improve to worsen an objective value
-        raise dash.exceptions.PreventUpdate
+    able_to_improve = any([True if c in ["<", "<="] else False for c in classifications])
+    able_to_worsen = any([True if c in [">=", "0"] else False for c in classifications])
 
-    if all([True if c == "=" else False for c in classifications]):
-        # All objectives cannot stay as they are...
+    if not (able_to_worsen and able_to_improve):
         raise dash.exceptions.PreventUpdate
 
     if any([True if c in ["<=", ">="] and v is None else False for (c, v) in zip(classifications, bounds)]):
@@ -237,7 +257,9 @@ def classification_ok(n_clicks, num_of_solutions, classifications, bounds):
 
     response = {}
     response["classifications"] = classifications
-    response["levels"] = bounds
+    response["levels"] = [
+        bound * method._problem._max_multiplier[i] if bound else None for (i, bound) in enumerate(bounds)
+    ]
     response["number_of_solutions"] = num_of_solutions
     req.response = response
     last_request = method.iterate(req)[0]
@@ -273,10 +295,6 @@ def save_ok(n_clicks, values):
 
     global last_request
     global method
-
-    print(last_request.content)
-
-    print(values)
 
     res = {"indices": values}
     last_request.response = res
@@ -493,6 +511,7 @@ def plot_new_solutions(_1, _2, _3, _4, _5):
         plotter.scaler.transform(solutions),
         selection=0,
         labels=[f"Alternative {i+1}" for (i, _) in enumerate(solutions)],
+        names=method._problem.objective_names,
     )
 
     return figure
@@ -514,86 +533,71 @@ if __name__ == "__main__":
 
     from desdeo_mcdm.interactive.NIMBUS import NIMBUS
 
-    # create the problem
+    ### create the problem
+    # define the objective functions
     def f_1(x):
-        res = 4.07 + 2.27 * x[:, 0]
-        return -res
+        # min x_1 + x_2 + x_3
+        res = x[:, 0] + x[:, 1] + x[:, 2]
+        return res
 
     def f_2(x):
-        res = 2.60 + 0.03 * x[:, 0] + 0.02 * x[:, 1] + 0.01 / (1.39 - x[:, 0] ** 2) + 0.30 / (1.39 - x[:, 1] ** 2)
-        return -res
+        # max x_1 + x_2 + x_3
+        res = x[:, 0] + x[:, 1] + x[:, 2]
+        return res
 
     def f_3(x):
-        res = 8.21 - 0.71 / (1.09 - x[:, 0] ** 2)
-        return -res
+        # max x_1 + x_2 - x_3
+        res = -x[:, 0] - x[:, 1] - x[:, 2]
+        return res
 
-    def f_4(x):
-        res = 0.96 - 0.96 / (1.09 - x[:, 1] ** 2)
-        return -res
+    f1 = _ScalarObjective(name="Price", evaluator=f_1, maximize=False)
+    f2 = _ScalarObjective(name="Quality", evaluator=f_2, maximize=True)
+    f3 = _ScalarObjective(name="Size", evaluator=f_3, maximize=True)
 
-    def f_5(x):
-        return np.max([np.abs(x[:, 0] - 0.65), np.abs(x[:, 1] - 0.65)], axis=0)
+    objl = [f1, f2, f3]
 
+    # define the variables, bounds -5 <= x_1 and x_2 <= 5
+    varsl = variable_builder(
+        ["x_1", "x_2", "x_3"], initial_values=[0.5, 0.5, 0.5], lower_bounds=[-5, -5, -5], upper_bounds=[5, 5, 5]
+    )
+
+    # define constraints
     def c_1(x, f=None):
         x = x.squeeze()
-        return (x[0] + x[1]) - 0.5
+        # x_1 < 2
+        return x[0] + 2
 
-    f1 = _ScalarObjective(name="f1", evaluator=f_1)
-    f2 = _ScalarObjective(name="f2", evaluator=f_2)
-    f3 = _ScalarObjective(name="f3", evaluator=f_3)
-    f4 = _ScalarObjective(name="f4", evaluator=f_4)
-    f5 = _ScalarObjective(name="f5", evaluator=f_5)
-    varsl = variable_builder(
-        ["x_1", "x_2"], initial_values=[0.5, 0.5], lower_bounds=[0.3, 0.3], upper_bounds=[1.0, 1.0]
-    )
-    c1 = ScalarConstraint("c1", 2, 5, evaluator=c_1)
+    # name of constraints, num variables, num objectives, evaluator
+    c1 = ScalarConstraint("c1", len(varsl), len(objl), evaluator=c_1)
 
-    # pre-calculated ideal and nadir
-    # ideal = np.array([-6.3397, -3.4310, -7.4998, 5.7610e-7, 0.0])
-    # nadir = np.array([-4.7520, -2.8690, -0.3431, 9.6580, 0.3500])
-    ideal = np.array([-7.3397, -4.4310, -8.4998, 0, 0.0])
-    nadir = np.array([-3.7520, -1.8690, 0.3431, 10.6580, 0.35])
-
-    problem = MOProblem(variables=varsl, objectives=[f1, f2, f3, f4, f5], constraints=[c1], nadir=nadir, ideal=ideal)
+    problem = MOProblem(variables=varsl, objectives=objl, constraints=[c1])
     # problem = MOProblem(variables=varsl, objectives=[f1, f2, f3, f4, f5], constraints=[c1])
 
     max_bool = list(map(lambda x: True if x < 0 else False, problem._max_multiplier))
+    max_multiplier = problem._max_multiplier
+
+    # pre computed ideal and nadir, defined AS IF minimizing all objectives!
+    ideal = max_multiplier * np.array([-15, 15, 15])
+    nadir = max_multiplier * np.array([15, -15, -15])
+
+    problem.ideal = ideal
+    problem.nadir = nadir
 
     # GLOBAL
     global method
     method = NIMBUS(problem, scalar_method="scipy_de")
 
+    # because we did not supply the ideal and nadir, the NIMBUS method will approximate these value using a payoff table
+    ideal = method._ideal
+    nadir = method._nadir
+
     # GLOBAL
     global plotter
+    idealnadir = np.stack((ideal, nadir))
     scaler = MinMaxScaler((-1, 1))
-    scaler.fit(np.stack((ideal, nadir)))
+    scaler.fit(idealnadir)
 
     plotter = Plotter(method._nadir, method._ideal, scaler, max_bool)
 
-    # reqs = method.request_classification()[0]
-
-    # response = {}
-    # response["classifications"] = ["<", "<=", "=", ">=", "0"]
-    # response["levels"] = [-6, -3, -5, 8, 0.349]
-    # response["number_of_solutions"] = 3
-    # reqs.response = response
-
-    # res_1 = method.iterate(reqs)[0]
-    # res_1.response = {"indices": [0, 1, 2]}
-
-    # res_2 = method.iterate(res_1)[0]
-    # response = {}
-    # response["indices"] = []
-    # response["number_of_desired_solutions"] = 0
-    # res_2.response = response
-
-    # res_3 = method.iterate(res_2)[0]
-    # response_pref = {}
-    # response_pref["index"] = 1
-    # response_pref["continue"] = True
-    # res_3.response = response_pref
-
-    # res_4 = method.iterate(res_3)
-
-    # display the app
+    # run the app
     main()
