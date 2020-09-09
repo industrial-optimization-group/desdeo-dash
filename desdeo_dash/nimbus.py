@@ -123,7 +123,7 @@ def layout():
             html.Div(
                 [
                     html.H3(
-                        "Either choose two solutions between which to generate a derided number of intermediate solutions or continue"
+                        "Either choose two solutions between which to generate a desidered number of intermediate solutions or continue"
                     ),
                     html.Div(
                         [
@@ -177,7 +177,7 @@ def layout():
                     html.H3(
                         (
                             "Select a preferred solution among the displayed solutions, and either continue to "
-                            "classification or end and display final the final solution chosen."
+                            "classification or end and display the final solution chosen."
                         )
                     ),
                     dcc.RadioItems(
@@ -435,7 +435,7 @@ def end(n_clicks, value):
 
     decision_vars = f"Decision variable values " f"{method._problem.variable_names}: {new_req.content['solution']}"
 
-    objective_vals = f"Objective values {method._problem.objective_names}: {new_req.content['objective']}"
+    objective_vals = f"Objective values {method._problem.objective_names}: {new_req.content['objective'] * method._problem._max_multiplier}"
 
     return [title, decision_vars, objective_vals]
 
