@@ -181,6 +181,7 @@ def make_fig(request, minimize, objective_names, multipliers):
         )
 
     fig.update_layout({"title": "Navigation", "height": 600})
+    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.10, xanchor="right", x=1))
     # fig.update_layout({"plot_bgcolor": "red"})
     #     dict(
     #         shapes=[
