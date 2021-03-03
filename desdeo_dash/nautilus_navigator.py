@@ -11,8 +11,7 @@ import dash_html_components as html
 import numpy as np
 import plotly.graph_objects as go
 from dash.dependencies import ALL, Input, Output, State
-from desdeo_mcdm.interactive.NautilusNavigator import (
-    NautilusNavigator, NautilusNavigatorRequest)
+from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
 from plotly.subplots import make_subplots
 
 from desdeo_dash.server import app
@@ -386,35 +385,8 @@ def navigation_layout(session_id):
                 id="storage-div",
                 style={"display": "none"},
             ),
-            html.H1(f"Navigation", id="solution-reached"),
-            html.Div(
-                html.P(
-                    "Current aspiration levels: "
-                    + "; ".join(
-                        [f"(f{i+1}){objective_names[i]}: {ideal[i]*is_minimize[i]}" for i in range(n_objectives)]
-                    )
-                ),
-                "preference-display-div",
-            ),
-            html.Div(
-                html.P(
-                    "Current best reachable value: "
-                    + "; ".join(
-                        [f"(f{i+1}){objective_names[i]}: {ideal[i]*is_minimize[i]}" for i in range(n_objectives)]
-                    )
-                ),
-                "best-reachable-display-div",
-            ),
-            html.Div(
-                html.P(
-                    "Current worst reachable worst: "
-                    + "; ".join(
-                        [f"(f{i+1}){objective_names[i]}: {nadir[i]*is_minimize[i]}" for i in range(n_objectives)]
-                    )
-                ),
-                "worst-reachable-display-div",
-            ),
-            html.H3("Use the sliders or input preference manually", className="row"),
+            html.H2(f"Navigation", id="solution-reached"),
+            html.H4("Use the sliders or input preference manually", className="row"),
             html.Div(
                 [
                     item
@@ -476,7 +448,48 @@ def navigation_layout(session_id):
                         id="navigation-graph",
                         figure=fig,
                         # config={"edits": {"shapePosition": True}},
-                        className="ten columns",
+                        className="eight columns",
+                    ),
+                    html.Div(
+                        [
+                            html.Div(
+                                html.P(
+                                    "Current aspiration levels:\n"
+                                    + ";\n".join(
+                                        [
+                                            f"(f{i+1}) {objective_names[i]}: {ideal[i]*is_minimize[i]}"
+                                            for i in range(n_objectives)
+                                        ]
+                                    )
+                                ),
+                                "preference-display-div",
+                            ),
+                            html.Div(
+                                html.P(
+                                    "Current best reachable value:\n"
+                                    + ";\n".join(
+                                        [
+                                            f"(f{i+1}) {objective_names[i]}: {ideal[i]*is_minimize[i]}"
+                                            for i in range(n_objectives)
+                                        ]
+                                    )
+                                ),
+                                "best-reachable-display-div",
+                            ),
+                            html.Div(
+                                html.P(
+                                    "Current worst reachable worst:\n"
+                                    + ";\n".join(
+                                        [
+                                            f"(f{i+1}) {objective_names[i]}: {nadir[i]*is_minimize[i]}"
+                                            for i in range(n_objectives)
+                                        ]
+                                    )
+                                ),
+                                "worst-reachable-display-div",
+                            ),
+                        ],
+                        className="two columns",
                     ),
                     dcc.Interval(id="stepper", interval=1 / response["speed"] * 1000, n_intervals=0, max_intervals=0),
                     html.Button(
