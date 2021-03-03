@@ -11,10 +11,7 @@ import dash_html_components as html
 import dash_table
 import numpy as np
 from dash.dependencies import Input, Output, State
-from desdeo_mcdm.interactive.ENautilus import (ENautilus,
-                                               ENautilusInitialRequest,
-                                               ENautilusRequest,
-                                               ENautilusStopRequest)
+from desdeo_mcdm.interactive.ENautilus import ENautilus, ENautilusInitialRequest, ENautilusRequest, ENautilusStopRequest
 from sklearn.preprocessing import MinMaxScaler
 
 from desdeo_dash import Plotter
@@ -299,12 +296,13 @@ def optimization_layout(uid: str):
                         id="enautilus-title",
                         className="row",
                     ),
-                    html.H4(
+                    html.P(
                         (
                             "To start, click 'ITERATE'. Spider plots will be generated after the first iteration. "
-                            " The red path in the value paths shows the nadir point."
+                            " The red path in the value paths shows the nadir point.",
                         ),
                         className="six columns",
+                        style={"margin": 0},
                         id="enautilus-info",
                     ),
                     dcc.RadioItems(
@@ -320,21 +318,23 @@ def optimization_layout(uid: str):
                 ],
                 className="row",
             ),
+            html.Hr(),
             # Second row
             html.Div(
                 [
                     # First column
                     html.Div(
                         [
-                            html.H5("Spider plots"),
+                            html.H4("Spider plots", style={"margin": 0}),
                             dcc.Graph(id="enautilus-spider-plots", figure=plotter.spider_plot_candidates(np.array([]))),
                         ],
                         className="six columns",
+                        style={"border": "1px grey solid", "padding": "1em"},
                     ),
                     # Second column
                     html.Div(
                         [
-                            html.H5("Value paths. Current selection in red."),
+                            html.H4("Value paths. Current selection in red.", style={"margin": 0}),
                             dcc.Graph(
                                 id="enautilus-value-paths",
                                 figure=plotter.value_path_plot_candidates(
@@ -345,6 +345,7 @@ def optimization_layout(uid: str):
                             ),
                         ],
                         className="six columns",
+                        style={"border": "1px grey solid", "padding": "1em"},
                     ),
                 ],
                 className="row",
@@ -354,14 +355,14 @@ def optimization_layout(uid: str):
                 [
                     html.Div(
                         [
-                            html.H5("Tabled candidate objective values"),
+                            html.H4("Tabled candidate objective values"),
                             dash_table.DataTable(id="enautilus-table", columns=columns, data=data),
                         ],
                         className="row",
                     ),
                     html.Div(
                         [
-                            html.H5("Tabled candidate best reachable values"),
+                            html.H4("Tabled candidate best reachable values"),
                             dash_table.DataTable(id="enautilus-table-best"),
                         ],
                         className="row",
