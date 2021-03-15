@@ -11,7 +11,8 @@ import dash_html_components as html
 import numpy as np
 import plotly.graph_objects as go
 from dash.dependencies import ALL, Input, Output, State
-from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
+from desdeo_mcdm.interactive.NautilusNavigator import (
+    NautilusNavigator, NautilusNavigatorRequest)
 from plotly.subplots import make_subplots
 
 from desdeo_dash.server import app
@@ -291,7 +292,7 @@ def navigation_layout(session_id, material):
     objective_names = list(['Purchashing and Ordering Cost (POC)', 'Holding Cost (HC)', 'Cycle Service Level (CSL)', 'Probability of Product Unavailability (PPU)', 'Inventory Turn Over (ITO)'])
     short_objective_names = list(['POC', 'HC', 'CSL', 'PPU', 'ITO'])
     multiplier = list([1,1,-1,1,-1])
-    objective_values_ = np.genfromtxt(f"data/{material}_f_data.csv", delimiter=",")
+    objective_values_ = np.genfromtxt(f"./data/{material}_f_data.csv", delimiter=",")
     # check for dominated solutions
     tmp = np.zeros(objective_values_.shape)
 

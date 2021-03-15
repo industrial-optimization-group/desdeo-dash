@@ -6,7 +6,8 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 
 from desdeo_dash.enautilus import layout as enautilus_layout
-from desdeo_dash.nautilus_navigator import layout as navigator_layout
+from desdeo_dash.lot_sizing import layout as lot_sizing_layout
+# from desdeo_dash.nautilus_navigator import layout as navigator_layout
 from desdeo_dash.server import app
 
 
@@ -50,7 +51,7 @@ def display_page(pathname, session_id):
             ]
         )
     elif pathname == "/navigator/":
-        return navigator_layout(session_id)
+        return lot_sizing_layout(session_id)
     elif pathname == "/enautilus/":
         return enautilus_layout(session_id)
     else:
