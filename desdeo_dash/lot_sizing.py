@@ -571,7 +571,7 @@ def update_preferences(values, _, prev_input_clicks, uid, material):
                     'HC : ', lower_bounds[1], html.Br(), 'CSL : ', lower_bounds[2], html.Br(), 
                     'PPU : ', lower_bounds[3], html.Br(), 'ITO : ', lower_bounds[4]
         ]
-        x_data = np.genfromtxt(f"data/{material}_x_data.csv", delimiter=",")
+        x_data = np.genfromtxt(f"./data/{material}_x_data.csv", delimiter=",")
         q_data = x_data[:, :41]
         ss_data = x_data[:, 41]
         st_data = x_data[:, 42]
