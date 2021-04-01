@@ -249,9 +249,9 @@ def index(uid, material_id):
             html.Label('Material list'),
             dcc.RadioItems(
                 options=[
-                    {'label': '31726010 -- RING GEAR 82', 'value': '31726010'},
-                    {'label': '37636500 -- COVER SFS-EN_1561 - EN-GJL-250 5PS', 'value': '37636500'},
-                    {'label': 'ACW179192B -- ASSEMBLY TOOLBOX M1-18VT S3-18VT', 'value': 'ACW179192B'}
+                    {'label': '31726010 -- RING GEAR', 'value': '31726010'},
+                    {'label': '37636500 -- COVER SFS', 'value': '37636500'},
+                    {'label': 'ACW179192B -- ASSEMBLY TOOLBOX', 'value': 'ACW179192B'}
                 ],
                 value='',
                 id='material_list'
@@ -289,9 +289,9 @@ def index(uid, material_id):
 
 def navigation_layout(session_id, material):
 
-    objective_names = list(['Purchashing and Ordering Cost (POC)', 'Holding Cost (HC)', 'Cycle Service Level (CSL)', 'Probability of Product Unavailability (PPU)', 'Inventory Turn Over (ITO)'])
-    short_objective_names = list(['POC', 'HC', 'CSL', 'PPU', 'ITO'])
-    multiplier = list([1,1,-1,1,-1])
+    objective_names = list(['Purchashing Cost (PC)', 'Ordering Cost (OC)', 'Holding Cost (HC)', 'Cycle Service Level (CSL)', 'Probability of Product Unavailability (PPU)', 'Inventory Turn Over (ITO)'])
+    short_objective_names = list(['PC', 'OC', 'HC', 'CSL', 'PPU', 'ITO'])
+    multiplier = list([1,1,1,-1,1,-1])
     objective_values_ = np.genfromtxt(f"./data/{material}_f_data.csv", delimiter=",")
     # check for dominated solutions
     tmp = np.zeros(objective_values_.shape)
@@ -326,6 +326,9 @@ def navigation_layout(session_id, material):
     fig = make_fig(request, is_minimize, objective_names, is_minimize)
 
     SessionManager.add_request(request, session_id)
+
+    up_arrow = u'\u2193'
+    down_arrow = u'\u2191'
 
     html_page = html.Div(
         [
@@ -389,10 +392,10 @@ def navigation_layout(session_id, material):
                                         vertical=True,
                                     ),
                                     html.Div(f"{short_objective_names[i]}", id=f"text-f{i}"),
-                                    html.Div(f"({'MIN' if is_minimize[i] == 1 else 'MAX'})", id=f"min-f{i}"),
+                                    html.Div(f"{up_arrow if is_minimize[i] == 1 else down_arrow}", id=f"min-f{i}"),
                                 ],
                                 className="three columns",
-                                style={"width": "15%"},
+                                style={"width": "13%"},
                             )
                             for i in range(n_objectives)
                         ],
@@ -407,6 +410,18 @@ def navigation_layout(session_id, material):
                     ),
                     html.Div(
                         [
+                            html.Div(
+                                html.P(
+                                    "Current aspiration levels:\n"
+                                    + ";\n".join(
+                                        [
+                                            f"(f{i+1}) {objective_names[i]}: {ideal[i]*is_minimize[i]}"
+                                            for i in range(n_objectives)
+                                        ]
+                                    )
+                                ),
+                                "preference-display-div",
+                            ),
                             html.Div(
                                 html.P(
                                     "Current best reachable value:\n"
@@ -433,7 +448,7 @@ def navigation_layout(session_id, material):
                             ),
                         ],
                         className="two columns",
-                        style={"margin-top": "7%"},
+                        style={"margin-top": "7%", "margin-left": "0%", "margin-right": "0%"},
                     ),
                     dcc.Interval(id="stepper", interval=1 / response["speed"] * 1000, n_intervals=0, max_intervals=0),
                     html.Button(
@@ -520,6 +535,7 @@ def navigation_layout(session_id, material):
 
 @app.callback(
     [
+        Output("preference-display-div", "children"),
         Output("best-reachable-display-div", "children"),
         Output("worst-reachable-display-div", "children"),
         Output({"type": "preference-manual-input", "index": ALL}, "value"),
@@ -545,7 +561,7 @@ def update_preferences(values, _, prev_input_clicks, uid, material):
     method = SessionManager.get_method(uid)
     minimize = method._minimize
     objective_names = method._objective_names
-    short_objective_names = list(['POC', 'HC', 'CSL', 'PPU', 'ITO'])
+    short_objective_names = list(['PC', 'OC', 'HC', 'CSL', 'PPU', 'ITO'])
     n_objectives = method._ideal.shape[0]
     request = SessionManager.get_request(uid)
     content = request.content
@@ -553,23 +569,32 @@ def update_preferences(values, _, prev_input_clicks, uid, material):
     lower_bounds = content["reachable_lb"] * minimize
     upper_bounds = content["reachable_ub"] * minimize
 
-    res_best = ['Current best reachable values:', html.Br(),'POC : ', lower_bounds[0], html.Br(),
-                'HC : ', lower_bounds[1], html.Br(), 'CSL : ', lower_bounds[2], html.Br(), 
-                'PPU : ', lower_bounds[3], html.Br(), 'ITO : ', lower_bounds[4]
+    res_asp = ['Current aspiration levels:', html.Br(), 'PC : ', f"{values[0]:.2f}", html.Br(),
+                'OC : ', f"{values[1]:.2f}", html.Br(), 'HC : ', f"{values[2]:.2f}", html.Br(), 
+                'CSL : ', f"{values[3]:.2%}", html.Br(), 'PPU : ', f"{values[4]:.2%}", html.Br(), 
+                'ITO : ', f"{values[5]:.2f}", html.Br(), 'DoS : ', f"{45*5/values[5]:.2f}"
+    ]
+
+    res_best = ['Current best reachable values:', html.Br(), 'PC : ', f"{lower_bounds[0]:.2f}", html.Br(),
+                'OC : ', f"{lower_bounds[1]:.2f}", html.Br(), 'HC : ', f"{lower_bounds[2]:.2f}", html.Br(),  
+                'CSL : ', f"{lower_bounds[3]:.2%}", html.Br(), 'PPU : ', f"{lower_bounds[4]:.2%}", html.Br(),
+                'ITO : ', f"{lower_bounds[5]:.2f}", html.Br(), 'DoS : ', f"{45*5/lower_bounds[5]:.2f}"
 #        [f"{short_objective_names[i]}: {lower_bounds[i]}", html.Br(), for i in range(n_objectives)]
     ]
 
-    res_worst = ['Current worst reachable values:', html.Br(),'POC : ', upper_bounds[0], html.Br(),
-                'HC : ', upper_bounds[1], html.Br(), 'CSL : ', upper_bounds[2], html.Br(), 
-                'PPU : ', upper_bounds[3], html.Br(), 'ITO : ', upper_bounds[4]
+    res_worst = ['Current worst reachable values:', html.Br(), 'PC : ', f"{upper_bounds[0]:.2f}", html.Br(),
+                'OC : ', f"{upper_bounds[1]:.2f}", html.Br(), 'HC : ', f"{upper_bounds[2]:.2f}", html.Br(),  
+                'CSL : ', f"{upper_bounds[3]:.2%}", html.Br(), 'PPU : ', f"{upper_bounds[4]:.2%}", html.Br(),
+                'ITO : ', f"{upper_bounds[5]:.2f}", html.Br(), 'DoS : ', f"{45*5/upper_bounds[5]:.2f}"
 #        [f"{short_objective_names[i]}: {upper_bounds[i]}" for i in range(n_objectives)]
     ]
 
     if request.content["steps_remaining"] <= 1:
         i_final = method._projection_index + 1
-        res_final = ['Final objective function values:', html.Br(),'POC : ', lower_bounds[0], html.Br(),
-                    'HC : ', lower_bounds[1], html.Br(), 'CSL : ', lower_bounds[2], html.Br(), 
-                    'PPU : ', lower_bounds[3], html.Br(), 'ITO : ', lower_bounds[4]
+        res_final = ['Final objective function values:', html.Br(), 'PC : ', f"{lower_bounds[0]:.2f}", html.Br(),
+                    'OC : ', f"{lower_bounds[1]:.2f}", html.Br(), 'HC : ', f"{lower_bounds[2]:.2f}", html.Br(),  
+                    'CSL : ', f"{lower_bounds[3]:.2%}", html.Br(), 'PPU : ', f"{lower_bounds[4]:.2%}", html.Br(),
+                    'ITO : ', f"{lower_bounds[5]:.2f}", html.Br(), 'DoS : ', f"{45*5/lower_bounds[5]:.2f}"
         ]
         x_data = np.genfromtxt(f"./data/{material}_x_data.csv", delimiter=",")
         q_data = x_data[:, :41]
@@ -578,9 +603,9 @@ def update_preferences(values, _, prev_input_clicks, uid, material):
         decision_final = ['Final solution : ', html.Br(), 'Q : [', ", ".join([str(int(q)) for q in q_data[i_final]]), ']', html.Br(),
                          'SS : ', ss_data[i_final], html.Br(), 'SLT : ', st_data[i_final]
                          ]
-        return res_final, decision_final, values
+        return '', res_final, decision_final, values
 
-    return res_best, res_worst, values
+    return res_asp, res_best, res_worst, values
 
 
 @app.callback(
