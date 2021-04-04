@@ -11,7 +11,8 @@ import dash_html_components as html
 import numpy as np
 import plotly.graph_objects as go
 from dash.dependencies import ALL, Input, Output, State
-from desdeo_mcdm.interactive.NautilusNavigator import NautilusNavigator, NautilusNavigatorRequest
+from desdeo_mcdm.interactive.NautilusNavigator import (
+    NautilusNavigator, NautilusNavigatorRequest)
 from plotly.subplots import make_subplots
 
 from desdeo_dash.server import app

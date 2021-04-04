@@ -89,7 +89,6 @@ class SessionManager:
 
         return SessionManager.REQUEST_CACHE[uid][index]
 
-
 SessionManager.config(MANAGER_SIZE)
 
 
@@ -664,8 +663,20 @@ def update_navigation_graph(
     if trigger_id == "stepper":
         if n_intervals == 0:
             return fig, fig, "no"
-
+        
         last_request = SessionManager.get_request(uid)
+
+        if len(fig["data"][0]["y"]) < method._step_number:
+            print("we are ahead")
+            print("fig len", len(fig["data"][0]["y"]))
+            print("method step", method._step_number)
+            last_request = SessionManager.get_request(uid)
+            new_fig = update_fig(last_request, fig, method._minimize)
+            return (new_fig, new_fig, "no")
+        else:
+            print("ok")
+            print("fig len", len(fig["data"][0]["y"]))
+            print("method step", method._step_number)
 
         if last_request.content["steps_remaining"] <= 1:
             # stop
@@ -728,15 +739,15 @@ def update_navigation_graph(
         SessionManager.add_request(new_request, uid, step - 1)
 
         for i in range(method._ideal.shape[0]):
-            fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:step]
-            fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:step]
-            fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:step]
-            fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:step]
+            fig["data"][3 * i + 0]["y"] = fig["data"][3 * i + 0]["y"][:method._step_number]
+            fig["data"][3 * i + 0]["x"] = fig["data"][3 * i + 0]["x"][:method._step_number]
+            fig["data"][3 * i + 1]["y"] = fig["data"][3 * i + 1]["y"][:method._step_number]
+            fig["data"][3 * i + 1]["x"] = fig["data"][3 * i + 1]["x"][:method._step_number]
             # fig["data"][3 * i + 2]["y"] = 100 * [values[i]]
             fig["data"][3 * i + 2]["y"] = fig["data"][3 * i + 2]["y"][
-                : method._step_number - 1
+                : method._step_number
             ] + method._steps_remaining * [values[i]]
-
+            
         return fig, fig, "no"
 
     else:
