@@ -206,7 +206,7 @@ def layout(session_id: str = None, material_id: str = None):
     if not session_id:
         session_id = str(uuid.uuid4())
     if not material_id:
-        material_id = "31726010"
+        material_id = "1"
     return html.Div(
         [
             html.Div(session_id, id="session-id", style={"display": "none"}),
@@ -248,9 +248,9 @@ def index(uid, material_id):
             html.Label('Material list'),
             dcc.RadioItems(
                 options=[
-                    {'label': '31726010 -- RING GEAR', 'value': '31726010'},
-                    {'label': '37636500 -- COVER SFS', 'value': '37636500'},
-                    {'label': 'ACW179192B -- ASSEMBLY TOOLBOX', 'value': 'ACW179192B'}
+                    {'label': 'SKU 1', 'value': '1'},
+                    {'label': 'SKU 2', 'value': '2'},
+                    {'label': 'SKU 3', 'value': '3'}
                 ],
                 value='',
                 id='material_list'
